@@ -176,6 +176,26 @@ def _generate_gradcam(image_path: str) -> str:
         return None
 
 
+def _is_likely_plant(image: Image.Image) -> bool:
+    """Fast color heuristic to check if image is likely a plant/leaf."""
+    try:
+        import numpy as np
+        from matplotlib.colors import rgb_to_hsv
+        img_small = image.resize((50, 50))
+        img_array = np.array(img_small) / 255.0
+        hsv = rgb_to_hsv(img_array)
+        h, s, v = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
+        
+        # Plant hue: roughly between orange (0.05) and cyan (0.5)
+        plant_mask = (h >= 0.05) & (h <= 0.50) & (s >= 0.15) & (v >= 0.15)
+        plant_ratio = np.sum(plant_mask) / (50 * 50)
+        
+        # Require at least 2% plant-like pixels
+        return plant_ratio > 0.02
+    except:
+        return True # Fallback to allow if error
+
+
 @router.post("/predict")
 async def predict_disease(file: UploadFile = File(...)):
     """
@@ -199,12 +219,20 @@ async def predict_disease(file: UploadFile = File(...)):
         # Open and validate image
         image = Image.open(filepath).convert("RGB")
         
+        # Strict OOD Color check
+        if not _is_likely_plant(image):
+            raise HTTPException(400, "Image does not appear to be a plant or leaf. Please upload a clear photo of crop foliage.")
+            
         # Quality assessment (P2)
         quality = _assess_image_quality(image)
         
         # Run prediction using real trained model
         from predict import predict
         result = predict(str(filepath))
+        
+        # Out-Of-Distribution (OOD) confidence check
+        if result["confidence"] < 0.60:
+            raise HTTPException(400, "Image not recognized with high confidence. Please upload a clear photo of a supported crop leaf.")
         
         # Generate Grad-CAM (P2) — best-effort
         gradcam_base64 = _generate_gradcam(str(filepath))
