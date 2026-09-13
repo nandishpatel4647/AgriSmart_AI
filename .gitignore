@@ -1,0 +1,45 @@
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Environment variables (never commit secrets)
+.env
+
+# Data and model weights (too large for git)
+data/raw/
+data/split/
+data/uploads/
+model/weights/*.pth
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node
+node_modules/
+.next/
+out/
+
+# Pip
+pip_tmp/
+
+# Kaggle cache
+kaggle_cache/
+
+# Temp
+*.tmp
+*.log

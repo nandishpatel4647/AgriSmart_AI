@@ -1,0 +1,25 @@
+# AgriSmart AI — Python Dependencies
+# Core ML
+torch>=2.10.0
+torchvision>=0.25.0
+torchaudio>=2.10.0
+
+# ML/Data
+numpy>=2.0.0
+scikit-learn>=1.5.0
+Pillow>=12.0.0
+matplotlib>=3.9.0
+seaborn>=0.13.0
+
+# Backend API
+fastapi>=0.115.0
+uvicorn>=0.32.0
+python-multipart>=0.0.12
+python-dotenv>=1.0.0
+requests>=2.32.0
+
+# GenAI
+google-generativeai>=0.8.0
+
+# Dataset download
+kagglehub>=0.3.0

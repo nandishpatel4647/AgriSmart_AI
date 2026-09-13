@@ -1,0 +1,47 @@
+AgriSmart AI — Classification Report
+Split: test
+NOTE: These are LOCAL test results.
+======================================================================
+
+Macro-F1 (PRIMARY): 0.9956
+Accuracy:           0.9970
+
+                                                    precision    recall  f1-score   support
+
+                                Apple___Apple_scab       1.00      1.00      1.00        63
+                                 Apple___Black_rot       1.00      1.00      1.00        63
+                          Apple___Cedar_apple_rust       1.00      1.00      1.00        28
+                                   Apple___healthy       1.00      1.00      1.00       165
+          Cherry_(including_sour)___Powdery_mildew       1.00      1.00      1.00       106
+                 Cherry_(including_sour)___healthy       1.00      1.00      1.00        86
+Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot       0.93      0.96      0.94        52
+                       Corn_(maize)___Common_rust_       1.00      1.00      1.00       120
+               Corn_(maize)___Northern_Leaf_Blight       0.98      0.96      0.97        99
+                            Corn_(maize)___healthy       1.00      1.00      1.00       117
+                                 Grape___Black_rot       1.00      1.00      1.00       118
+                      Grape___Esca_(Black_Measles)       1.00      1.00      1.00       139
+        Grape___Leaf_blight_(Isariopsis_Leaf_Spot)       1.00      1.00      1.00       109
+                                   Grape___healthy       1.00      1.00      1.00        43
+                            Peach___Bacterial_spot       1.00      1.00      1.00       231
+                                   Peach___healthy       1.00      1.00      1.00        36
+                     Pepper,_bell___Bacterial_spot       1.00      1.00      1.00       101
+                            Pepper,_bell___healthy       1.00      1.00      1.00       149
+                             Potato___Early_blight       1.00      1.00      1.00       100
+                              Potato___Late_blight       1.00      0.99      0.99       100
+                                  Potato___healthy       0.94      1.00      0.97        16
+                          Strawberry___Leaf_scorch       1.00      1.00      1.00       112
+                              Strawberry___healthy       1.00      1.00      1.00        47
+                           Tomato___Bacterial_spot       1.00      0.99      0.99       214
+                             Tomato___Early_blight       1.00      1.00      1.00       100
+                              Tomato___Late_blight       1.00      1.00      1.00       192
+                                Tomato___Leaf_Mold       1.00      1.00      1.00        96
+                       Tomato___Septoria_leaf_spot       0.99      1.00      1.00       178
+     Tomato___Spider_mites Two-spotted_spider_mite       1.00      0.99      1.00       169
+                              Tomato___Target_Spot       0.99      0.99      0.99       141
+            Tomato___Tomato_Yellow_Leaf_Curl_Virus       1.00      1.00      1.00       537
+                      Tomato___Tomato_mosaic_virus       1.00      1.00      1.00        38
+                                  Tomato___healthy       1.00      1.00      1.00       160
+
+                                          accuracy                           1.00      4025
+                                         macro avg       0.99      1.00      1.00      4025
+                                      weighted avg       1.00      1.00      1.00      4025
