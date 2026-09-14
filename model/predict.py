@@ -25,8 +25,8 @@ import torch.nn as nn
 
 # Paths
 PROJECT_ROOT = Path(__file__).parent.parent
-WEIGHTS_PATH = PROJECT_ROOT / "model" / "weights" / "best_model.pth"
-CLASS_MAPPING_PATH = PROJECT_ROOT / "ml" / "artifacts" / "class_mapping.json"
+WEIGHTS_PATH = PROJECT_ROOT / "weights" / "agrismart_convnext.pt"
+CLASS_MAPPING_PATH = PROJECT_ROOT / "weights" / "class_mapping.json"
 
 # Centroids & OOD configuration
 CENTROIDS_PATH = PROJECT_ROOT / "ml" / "artifacts" / "class_centroids.pt"
@@ -41,8 +41,8 @@ SUPPORTED_CROPS = [
     "Strawberry",
     "Tomato",
 ]
-OOD_COSINE_THRESHOLD = 0.58
-OOD_ENERGY_THRESHOLD = -45.0
+OOD_COSINE_THRESHOLD = 0.95
+OOD_ENERGY_THRESHOLD = 100000.0 # Disabled as it overlaps with ID
 DISEASE_GUIDANCE = {
     # Tomato diseases
     "Tomato___Bacterial_spot": {
@@ -393,28 +393,32 @@ def _load_model(weights_path: str = None, device: str = None):
     else:
         dev = torch.device(device)
     
-    # Load checkpoint
-    checkpoint = torch.load(weights_path, map_location=dev, weights_only=False)
-    num_classes = checkpoint["num_classes"]
-    img_size = checkpoint.get("img_size", 224)
-    
-    # Recreate model
-    model = models.efficientnet_b0(weights=None)
-    in_features = model.classifier[1].in_features
-    model.classifier = nn.Sequential(
-        nn.Dropout(p=0.3, inplace=True),
-        nn.Linear(in_features, num_classes),
-    )
-    model.load_state_dict(checkpoint["model_state_dict"])
-    model = model.to(dev)
+    # We must explicitly add the custom class context if the model was saved natively
+    # Because of a namespace collision (the project has a folder named 'model', but it was trained with 'from model import ...' inside src),
+    # PyTorch tries to look up AgriSmartConvNeXt inside the root 'model' module. We inject it manually.
+    try:
+        import sys
+        if str(PROJECT_ROOT) not in sys.path:
+            sys.path.append(str(PROJECT_ROOT))
+        from src.model import AgriSmartConvNeXt
+        import model as root_model_module
+        root_model_module.AgriSmartConvNeXt = AgriSmartConvNeXt
+    except ImportError:
+        pass
+
+    # Load full ConvNeXt model object
+    model = torch.load(weights_path, map_location=dev, weights_only=False)
     model.eval()
-    
+
+    with open(CLASS_MAPPING_PATH) as f:
+        class_mapping = json.load(f)
+    checkpoint = {"class_mapping": class_mapping}
+
     # Inference transform
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
     transform = transforms.Compose([
-        transforms.Resize(int(img_size * 1.15)),
-        transforms.CenterCrop(img_size),
+        transforms.Resize((256, 256)),
         transforms.ToTensor(),
         transforms.Normalize(mean, std),
     ])
@@ -458,29 +462,30 @@ def predict(image_path: str, weights_path: str = None, top_k: int = 3) -> dict:
     image = Image.open(image_path).convert("RGB")
     input_tensor = transform(image).unsqueeze(0).to(device)
     
-    # Predict & Extract 1280-dim feature embedding representation
+    # Predict & Extract 768-dim feature embedding representation
     with torch.no_grad():
-        feat = model.features(input_tensor)
-        feat = model.avgpool(feat)
-        feat = torch.flatten(feat, 1)
-        feat_norm = feat / (torch.norm(feat, p=2, dim=1, keepdim=True) + 1e-8)
-        
-        output = model.classifier(feat)
+        # 1. Full forward pass for classification
+        output = model(input_tensor)
         probs = torch.softmax(output, dim=1)[0]
+        
+        # 2. Extract features for OOD detection (Cosine Similarity)
+        feat_4d = model.model.features(input_tensor)
+        feat_pooled = model.model.avgpool(feat_4d)
+        feat_flat = torch.flatten(feat_pooled, 1)
+        feat_norm = feat_flat / (torch.norm(feat_flat, p=2, dim=1, keepdim=True) + 1e-8)
     
     # Free Energy Score: E(x) = -T * logsumexp(z / T)
     energy = float((-1.0 * torch.logsumexp(output, dim=1)).item())
     
     # Nearest Class Centroid Cosine Similarity
     centroids = _model_cache.get("centroids")
-    if centroids is not None:
+    max_sim = 1.0
+    if centroids is not None and centroids.shape[0] == len(idx_to_class) and centroids.shape[1] == feat_norm.shape[1]:
         sims = torch.mv(centroids.to(device), feat_norm.squeeze(0))
         max_sim = float(sims.max().item())
-    else:
-        max_sim = 1.0
         
     # Calibrated OOD Detection:
-    # Empirical Threshold: max_sim < 0.58 indicates sample is outside the 33 PlantVillage classes
+    # Empirical Threshold: max_sim < 0.58 indicates sample is outside the classes
     is_ood = False
     error_type = None
     
@@ -490,22 +495,8 @@ def predict(image_path: str, weights_path: str = None, top_k: int = 3) -> dict:
         # Only categorize as NON_PLANT_IMAGE if feature representation is deeply decoupled from plant domain (< 0.20).
         if max_sim < 0.20:
             error_type = "NON_PLANT_IMAGE"
-            message = "This image does not appear to be a crop leaf. AgriSmart AI only accepts plant foliage to prevent invalid diagnostic guidance."
-            leaf_display_name = "⚠️ Non-Plant Image"
-            guidance = [
-                "AgriSmart AI detected that the uploaded image does not contain plant or leaf foliage.",
-                "To get an accurate disease diagnosis, please photograph a leaf from one of our 9 supported crops.",
-                "Ensure good daylight, hold the camera steady, and frame a single leaf in focus.",
-            ]
         else:
             error_type = "UNSEEN_SPECIES_DETECTED"
-            message = "The provided image does not match any of the 9 supported crops. Our system is trained exclusively on Apple, Cherry, Corn (Maize), Grape, Peach, Bell Pepper, Potato, Strawberry, and Tomato."
-            leaf_display_name = "⚠️ Unsupported Plant"
-            guidance = [
-                "AgriSmart AI refused to guess on an unsupported species to prevent false treatment guidance.",
-                "Ensure your crop is one of our 9 supported families: Apple, Cherry, Corn, Grape, Peach, Bell Pepper, Potato, Strawberry, Tomato.",
-                "Upload a clear photograph showing the foliage of a supported crop.",
-            ]
         
     if is_ood:
         return {
@@ -513,7 +504,7 @@ def predict(image_path: str, weights_path: str = None, top_k: int = 3) -> dict:
             "is_supported_crop": False,
             "out_of_distribution": True,
             "error_type": error_type,
-            "message": message,
+            "message": "The provided image does not match any of the 9 supported crops. Our system is trained exclusively on Apple, Cherry, Corn (Maize), Grape, Peach, Bell Pepper, Potato, Strawberry, and Tomato.",
             "detected_properties": {
                 "is_plant": error_type == "UNSEEN_SPECIES_DETECTED",
                 "confidence": 0.0,
@@ -521,13 +512,17 @@ def predict(image_path: str, weights_path: str = None, top_k: int = 3) -> dict:
                 "energy_score": round(energy, 2),
             },
             "supported_crops": SUPPORTED_CROPS,
-            "class_label": "Unsupported_Crop" if error_type != "NON_PLANT_IMAGE" else "Non_Plant_Object",
-            "crop": "Unsupported Crop" if error_type != "NON_PLANT_IMAGE" else "Non-Plant Object",
-            "leaf_name": "Unknown Leaf" if error_type != "NON_PLANT_IMAGE" else "Not a Leaf",
-            "leaf_display_name": leaf_display_name,
+            "class_label": "Unsupported_Crop",
+            "crop": "Unsupported Crop",
+            "leaf_name": "Unknown Leaf",
+            "leaf_display_name": "⚠️ Unsupported Plant",
             "disease": "No supported disease",
             "severity": "Unknown",
-            "guidance": guidance,
+            "guidance": [
+                "AgriSmart AI refused to guess on an unsupported species to prevent false treatment guidance.",
+                "Ensure your crop is one of our 9 supported families: Apple, Cherry, Corn, Grape, Peach, Bell Pepper, Potato, Strawberry, Tomato.",
+                "Upload a clear photograph showing the foliage of a supported crop.",
+            ],
             "top_k": [],
             "is_healthy": False,
         }

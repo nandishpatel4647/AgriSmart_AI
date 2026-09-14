@@ -119,9 +119,11 @@ def _generate_gradcam(image_path: str) -> str:
         img = Image.open(image_path).convert("RGB")
         img_tensor = transform(img).unsqueeze(0).to(device)
         
-        # Target layer: features[6] is the 192-channel inverted residual stage (7x7)
-        # providing localized spatial disease lesion attribution.
-        target_layer = model.features[6]
+        # Target layer: For ConvNeXt, features[-2] is the last spatial block; for EfficientNet features[6]
+        if hasattr(model, "model") and hasattr(model.model, "features"):
+            target_layer = model.model.features[-2]
+        else:
+            target_layer = model.features[6]
         
         activations = []
         gradients = []
@@ -303,7 +305,7 @@ async def predict_disease(
             "confidence": result["confidence"],
             "crop": result["crop"],
             "created_at": datetime.utcnow().isoformat(),
-            "analysis_note": "Prediction returned by trained EfficientNet-B0 with calibrated OOD rejection.",
+            "analysis_note": "Prediction returned by trained ConvNeXt with calibrated OOD rejection.",
             "precautionary_guidance": result.get("guidance", []),
             "prediction": {
                 "class_label": result["class_label"],
@@ -316,6 +318,12 @@ async def predict_disease(
                 "is_healthy": result["is_healthy"],
                 "guidance": result.get("guidance", []),
                 "top_predictions": top_preds,
+                "cosine_similarity": result.get("cosine_similarity"),
+                "energy_score": result.get("energy_score"),
+            },
+            "detected_properties": {
+                "is_plant": True,
+                "confidence": result["confidence"],
                 "cosine_similarity": result.get("cosine_similarity"),
                 "energy_score": result.get("energy_score"),
             },
