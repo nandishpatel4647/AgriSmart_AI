@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { 
   MapPin, 
   Sun, 
+  Bell, 
   ChevronDown, 
   Leaf,
   LayoutDashboard,
@@ -21,13 +22,25 @@ import {
   UserPlus
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
+import { getWeather } from "../lib/api";
 
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, isLoggedIn, logout } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [liveTemp, setLiveTemp] = useState<number | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    getWeather()
+      .then((data) => {
+        if (data?.current?.temperature !== undefined) {
+          setLiveTemp(Math.round(data.current.temperature));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -52,7 +65,7 @@ export default function Navbar() {
 
   const secondaryNavItems = [
     { label: "Map & Monitor", href: "/map", icon: Map },
-    { label: "Crop Rotation", href: "/rotation", icon: Sprout },
+    { label: "Crop Recommendation", href: "/rotation", icon: Sprout },
     { label: "Weather", href: "/weather", icon: CloudSun },
     { label: "Assistant", href: "/assistant", icon: Bot },
   ];
@@ -123,8 +136,18 @@ export default function Navbar() {
           {/* Weather Chip */}
           <div className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-gray-700">
             <Sun className="w-4 h-4 text-amber-500" />
-            <span>29°C</span>
+            <span>{liveTemp !== null ? `${liveTemp}°C` : "--°C"}</span>
           </div>
+
+          {/* Notification Bell */}
+          <button 
+            type="button" 
+            aria-label="Notifications"
+            className="relative p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <Bell className="w-4 h-4" />
+            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white" />
+          </button>
 
           {/* Profile / Auth Dropdown */}
           <div className="relative" ref={dropdownRef}>

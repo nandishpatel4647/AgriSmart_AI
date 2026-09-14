@@ -64,3 +64,18 @@ def get_all_alerts():
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+
+@router.delete("/farms/{farm_id}")
+def delete_farm(farm_id: int):
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM alerts WHERE farm_id = ?", (farm_id,))
+        cursor.execute("DELETE FROM farms WHERE id = ?", (farm_id,))
+        conn.commit()
+        return {"success": True, "message": f"Farm {farm_id} deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+

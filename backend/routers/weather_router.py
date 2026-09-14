@@ -16,25 +16,64 @@ OPEN_METEO_CURRENT_URL = "https://api.open-meteo.com/v1/forecast"
 DEFAULT_LAT = 23.0225
 DEFAULT_LON = 72.5714
 
-# Disease risk rules based on weather conditions
-DISEASE_RISK_RULES = {
-    "fungal_risk": {
-        "condition": "High humidity (>80%) + moderate temperature (15-30°C)",
-        "message": "⚠️ Elevated fungal disease risk — monitor crops closely for leaf spots and blight",
-    },
-    "late_blight_risk": {
-        "condition": "Cool nights (<15°C) + wet conditions + moderate days (15-25°C)",
-        "message": "🔴 Late blight conditions detected — inspect potato and tomato crops immediately",
-    },
-    "heat_stress": {
-        "condition": "Temperature > 38°C",
-        "message": "🌡️ Heat stress likely — ensure adequate irrigation and shade for sensitive crops",
-    },
-    "frost_risk": {
-        "condition": "Temperature < 2°C",
-        "message": "❄️ Frost risk — protect sensitive crops with covers",
-    },
+WMO_CODES = {
+    0: "Clear Sky",
+    1: "Mainly Clear",
+    2: "Partly Cloudy",
+    3: "Overcast",
+    45: "Foggy",
+    48: "Depositing Rime Fog",
+    51: "Light Drizzle",
+    53: "Moderate Drizzle",
+    55: "Dense Drizzle",
+    56: "Freezing Drizzle",
+    57: "Dense Freezing Drizzle",
+    61: "Slight Rain",
+    63: "Moderate Rain",
+    65: "Heavy Rain",
+    66: "Freezing Rain",
+    67: "Heavy Freezing Rain",
+    71: "Slight Snow",
+    73: "Moderate Snow",
+    75: "Heavy Snow",
+    77: "Snow Grains",
+    80: "Slight Rain Showers",
+    81: "Moderate Rain Showers",
+    82: "Violent Rain Showers",
+    85: "Slight Snow Showers",
+    86: "Heavy Snow Showers",
+    95: "Thunderstorm",
+    96: "Thunderstorm with Hail",
+    99: "Heavy Thunderstorm",
 }
+
+def get_weather_description(code: int) -> str:
+    return WMO_CODES.get(code if code is not None else 0, "Partly Cloudy")
+
+GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
+
+@router.get("/weather/search")
+async def search_location(query: str = Query(..., min_length=2)):
+    """Search city / location coordinates via Open-Meteo Geocoding API."""
+    try:
+        response = requests.get(GEOCODING_URL, params={"name": query, "count": 5, "language": "en", "format": "json"}, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        results = []
+        for item in data.get("results", []):
+            admin1 = item.get("admin1") or ""
+            display_name = f"{item.get('name')}, {admin1} ({item.get('country')})".replace(",  ", ", ").replace(" ()", "")
+            results.append({
+                "name": item.get("name"),
+                "country": item.get("country"),
+                "admin1": admin1,
+                "latitude": item.get("latitude"),
+                "longitude": item.get("longitude"),
+                "display_name": display_name,
+            })
+        return {"success": True, "results": results}
+    except Exception as e:
+        return {"success": False, "results": [], "error": str(e)}
 
 
 def _assess_disease_risk(current_weather: dict, daily_weather: dict = None) -> list:
@@ -140,35 +179,95 @@ def _generate_irrigation_advice(current: dict, daily: dict = None) -> dict:
         }
 
 
+def fetch_wttr_fallback(lat: float, lon: float):
+    """Fallback weather provider using wttr.in JSON format."""
+    try:
+        url = f"https://wttr.in/{lat},{lon}?format=j1"
+        res = requests.get(url, timeout=5)
+        if res.ok:
+            data = res.json()
+            curr = data.get("current_condition", [{}])[0]
+            temp = float(curr.get("temp_C", 25))
+            humidity = int(curr.get("humidity", 65))
+            precip = float(curr.get("precipMM", 0.0))
+            wind = float(curr.get("windspeedKmph", 10))
+            wind_dir = curr.get("winddir16Point", "N")
+            cond = curr.get("weatherDesc", [{}])[0].get("value", "Partly Cloudy")
+            return {
+                "temperature": temp,
+                "feels_like": float(curr.get("FeelsLikeC", temp)),
+                "humidity": humidity,
+                "precipitation": precip,
+                "rain": precip,
+                "wind_speed": wind,
+                "wind_direction": wind_dir,
+                "weather_code": 2,
+                "condition": cond,
+                "cloud_cover": int(curr.get("cloudcover", 50)),
+                "surface_pressure": float(curr.get("pressure", 1013)),
+            }
+    except Exception:
+        pass
+    return None
+
+
 @router.get("/weather")
 async def get_weather(
     lat: float = Query(DEFAULT_LAT, description="Latitude"),
     lon: float = Query(DEFAULT_LON, description="Longitude"),
 ):
     """
-    Get current weather, forecast, and disease risk assessment.
-    Data source: Open-Meteo (free, no API key required).
+    Get live, accurate current weather, forecast, and disease risk assessment.
+    Data source: Open-Meteo API + wttr.in fallback resilience.
     """
     try:
-        # Fetch current + forecast data
+        # Fetch enriched current + forecast parameters
         params = {
             "latitude": lat,
             "longitude": lon,
-            "current": "temperature_2m,relative_humidity_2m,rain,wind_speed_10m,weather_code,cloud_cover",
-            "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,weather_code,wind_speed_10m_max",
+            "current": "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,showers,wind_speed_10m,wind_direction_10m,weather_code,cloud_cover,surface_pressure",
+            "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,weather_code,wind_speed_10m_max,uv_index_max",
             "hourly": "temperature_2m,relative_humidity_2m,rain",
             "timezone": "auto",
             "forecast_days": 7,
             "forecast_hours": 24,
         }
         
-        response = requests.get(OPEN_METEO_URL, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
+        current = None
+        daily = {}
+        data_source = "Open-Meteo (open-meteo.com) — Live Weather API"
         
-        current = data.get("current", {})
-        daily = data.get("daily", {})
-        hourly = data.get("hourly", {})
+        try:
+            response = requests.get(OPEN_METEO_URL, params=params, timeout=8)
+            if response.ok:
+                data = response.json()
+                current_data = data.get("current", {})
+                daily = data.get("daily", {})
+                
+                weather_code = current_data.get("weather_code", 0)
+                current = {
+                    "temperature": current_data.get("temperature_2m"),
+                    "feels_like": current_data.get("apparent_temperature", current_data.get("temperature_2m")),
+                    "humidity": current_data.get("relative_humidity_2m"),
+                    "precipitation": current_data.get("precipitation", current_data.get("rain", 0.0)),
+                    "rain": current_data.get("rain", 0.0),
+                    "wind_speed": current_data.get("wind_speed_10m"),
+                    "wind_direction": current_data.get("wind_direction_10m"),
+                    "weather_code": weather_code,
+                    "condition": get_weather_description(weather_code),
+                    "cloud_cover": current_data.get("cloud_cover"),
+                    "surface_pressure": current_data.get("surface_pressure"),
+                }
+        except Exception as e:
+            print(f"[WARN] Open-Meteo API failed, using wttr.in fallback: {e}")
+        
+        # Fallback to wttr.in if Open-Meteo fails
+        if not current:
+            current = fetch_wttr_fallback(lat, lon)
+            data_source = "wttr.in Weather API — Fallback Provider"
+            
+        if not current:
+            raise requests.exceptions.RequestException("Both weather services failed")
         
         # Disease risk assessment
         disease_risks = _assess_disease_risk(current, daily)
@@ -180,28 +279,24 @@ async def get_weather(
         forecast = []
         if daily.get("time"):
             for i in range(min(7, len(daily["time"]))):
+                code = daily.get("weather_code", [0])[i]
                 forecast.append({
                     "date": daily["time"][i],
                     "temp_max": daily.get("temperature_2m_max", [None])[i],
                     "temp_min": daily.get("temperature_2m_min", [None])[i],
                     "precipitation": daily.get("precipitation_sum", [0])[i],
                     "rain_probability": daily.get("precipitation_probability_max", [0])[i],
-                    "weather_code": daily.get("weather_code", [0])[i],
+                    "uv_index": daily.get("uv_index_max", [0])[i],
+                    "weather_code": code,
+                    "condition": get_weather_description(code),
                     "wind_max": daily.get("wind_speed_10m_max", [0])[i],
                 })
         
         return {
             "success": True,
-            "data_source": "Open-Meteo (open-meteo.com) — Free weather API",
+            "data_source": data_source,
             "location": {"latitude": lat, "longitude": lon},
-            "current": {
-                "temperature": current.get("temperature_2m"),
-                "humidity": current.get("relative_humidity_2m"),
-                "rain": current.get("rain"),
-                "wind_speed": current.get("wind_speed_10m"),
-                "weather_code": current.get("weather_code"),
-                "cloud_cover": current.get("cloud_cover"),
-            },
+            "current": current,
             "forecast": forecast,
             "disease_risks": disease_risks,
             "irrigation_advice": irrigation_advice,
@@ -221,3 +316,5 @@ async def get_weather(
                 "action": "Monitor crops manually and check weather from another source",
             }],
         }
+
+

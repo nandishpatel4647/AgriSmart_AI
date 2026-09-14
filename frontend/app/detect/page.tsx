@@ -143,6 +143,11 @@ export default function DiseaseDetectionPage() {
 
     try {
       const data = await predictDisease(file);
+      try {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("agrismart_last_scan", JSON.stringify(data));
+        }
+      } catch {}
       setTimeout(() => {
         setResult(data);
         setIsScanning(false);
