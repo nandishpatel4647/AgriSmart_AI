@@ -30,16 +30,16 @@ export default function Navbar() {
         
         {/* Brand Logo */}
         <Link href="/" className="flex shrink-0 items-center gap-2.5" data-testid="header-logo-link">
-          <span className="flex size-9 items-center justify-center rounded-[13px] bg-[#19352b] text-[#f6c86e]">
-            <Sprout size={19} />
+          <span className="flex size-9 items-center justify-center rounded-[13px] bg-[#19352b] text-[#f6c86e] shadow-xs">
+            <Sprout size={20} />
           </span>
-          <span className="font-heading text-[16px] font-bold tracking-[-0.04em]" data-testid="header-logo-text">
+          <span className="font-heading text-[17px] font-extrabold tracking-[-0.04em]" data-testid="header-logo-text">
             AgriSmart <span className="text-[#b77731]">AI</span>
           </span>
         </Link>
 
         {/* Primary Desktop Navigation */}
-        <nav className="hidden md:flex min-w-0 flex-1 items-center justify-center gap-1.5" data-testid="primary-navigation">
+        <nav className="hidden md:flex min-w-0 flex-1 items-center justify-center gap-2" data-testid="primary-navigation">
           {primaryLinks.map(({ to, label, icon: Icon, testId }) => {
             const isActive = pathname === to;
             return (
@@ -49,41 +49,47 @@ export default function Navbar() {
                 className={`nav-route ${isActive ? "nav-route-active" : ""}`}
                 data-testid={testId}
               >
-                <Icon size={15} />
+                <Icon size={16} />
                 <span>{label}</span>
               </Link>
             );
           })}
 
-          {/* More Tools Dropdown */}
-          <div className="relative">
+          {/* More Tools Dropdown (Opens on Hover as requested) */}
+          <div 
+            className="relative py-2"
+            onMouseEnter={() => setMoreDropdownOpen(true)}
+            onMouseLeave={() => setMoreDropdownOpen(false)}
+          >
             <button
               type="button"
               onClick={() => setMoreDropdownOpen(!moreDropdownOpen)}
-              className="nav-route flex items-center gap-1 cursor-pointer"
+              className={`nav-route flex items-center gap-1.5 cursor-pointer ${moreDropdownOpen ? "bg-[#19352b]/10 text-[#19352b]" : ""}`}
+              aria-expanded={moreDropdownOpen}
             >
               <span>More</span>
-              <ChevronDown size={13} className={`transition-transform duration-200 ${moreDropdownOpen ? "rotate-180" : ""}`} />
+              <ChevronDown size={14} className={`transition-transform duration-200 ${moreDropdownOpen ? "rotate-180" : ""}`} />
             </button>
 
             {moreDropdownOpen && (
               <div 
-                className="absolute left-0 mt-2 w-48 rounded-2xl border border-[#19352b]/12 bg-[#fff8eb] p-2 shadow-[0_12px_36px_rgba(25,53,43,0.12)] z-50 animate-in fade-in slide-in-from-top-2 duration-150"
-                onMouseLeave={() => setMoreDropdownOpen(false)}
+                className="absolute left-0 top-[90%] pt-1 w-52 z-50 animate-in fade-in slide-in-from-top-1 duration-150"
               >
-                {secondaryLinks.map(({ to, label, icon: Icon }) => (
-                  <Link
-                    key={to}
-                    href={to}
-                    onClick={() => setMoreDropdownOpen(false)}
-                    className={`flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl transition-colors ${
-                      pathname === to ? "bg-[#19352b] text-[#fff8eb]" : "text-[#19352b]/70 hover:bg-[#19352b]/06 hover:text-[#19352b]"
-                    }`}
-                  >
-                    <Icon size={14} className="text-[#b77731]" />
-                    <span>{label}</span>
-                  </Link>
-                ))}
+                <div className="rounded-2xl border border-[#19352b]/15 bg-[#fff8eb] p-2 shadow-[0_16px_40px_rgba(25,53,43,0.14)]">
+                  {secondaryLinks.map(({ to, label, icon: Icon }) => (
+                    <Link
+                      key={to}
+                      href={to}
+                      onClick={() => setMoreDropdownOpen(false)}
+                      className={`flex items-center gap-3 px-3.5 py-2.5 text-[13px] font-bold rounded-xl transition-all ${
+                        pathname === to ? "bg-[#19352b] text-[#fff8eb]" : "text-[#19352b]/80 hover:bg-[#19352b]/08 hover:text-[#19352b]"
+                      }`}
+                    >
+                      <Icon size={15} className="text-[#b77731] shrink-0" />
+                      <span>{label}</span>
+                    </Link>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -93,7 +99,7 @@ export default function Navbar() {
         <div className="flex items-center gap-3">
           <Link
             href="/detect"
-            className="hidden shrink-0 items-center gap-2 rounded-full bg-[#b77731] px-4 py-2.5 text-[11px] font-bold text-[#fff8eb] shadow-sm transition-transform duration-200 hover:-translate-y-0.5 sm:flex"
+            className="hidden shrink-0 items-center gap-2 rounded-full bg-[#b77731] hover:bg-[#a36829] px-5 py-2.5 text-xs font-bold text-[#fff8eb] shadow-sm transition-transform duration-200 hover:-translate-y-0.5 sm:flex cursor-pointer"
             data-testid="header-scan-cta"
           >
             <Leaf size={14} />

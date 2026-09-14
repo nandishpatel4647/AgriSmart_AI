@@ -43,10 +43,23 @@ export default function ScanHistoryPage() {
     setLoading(true);
     setError(null);
     try {
-      const filter = cropFilter && cropFilter !== "All" ? cropFilter : undefined;
-      const data = await fetchScanHistory(filter);
-      setScans(data.scans || []);
-      setAvailableCrops(Object.keys(data.crop_summary || {}));
+      if (isLoggedIn) {
+        const filter = cropFilter && cropFilter !== "All" ? cropFilter : undefined;
+        const data = await fetchScanHistory(filter);
+        setScans(data.scans || []);
+        setAvailableCrops(Object.keys(data.crop_summary || {}));
+      } else if (typeof window !== "undefined") {
+        // Load instantly from localStorage for friction-free farmer access
+        const raw = localStorage.getItem("agrismart_local_scans");
+        const localList: ScanHistoryItem[] = raw ? JSON.parse(raw) : [];
+        const crops = Array.from(new Set(localList.map((s) => s.crop_family).filter(Boolean)));
+        setAvailableCrops(crops);
+        if (cropFilter && cropFilter !== "All") {
+          setScans(localList.filter((s) => s.crop_family === cropFilter));
+        } else {
+          setScans(localList);
+        }
+      }
     } catch (err: any) {
       setError(err.message || "Failed to load scan history");
     } finally {
@@ -55,11 +68,7 @@ export default function ScanHistoryPage() {
   };
 
   useEffect(() => {
-    if (isLoggedIn) {
-      loadScans(selectedCrop);
-    } else if (!authLoading) {
-      setLoading(false);
-    }
+    loadScans(selectedCrop);
   }, [isLoggedIn, selectedCrop, authLoading]);
 
   // Check URL query parameters for direct scanId or crop
@@ -76,14 +85,21 @@ export default function ScanHistoryPage() {
   }, []);
 
   const handleOpenDetail = async (id: number) => {
-    setLoadingDetail(true);
-    try {
-      const scanItem = await fetchScanDetail(id);
-      setSelectedScan(scanItem);
-    } catch (err: any) {
-      alert("Failed to load scan detail: " + err.message);
-    } finally {
-      setLoadingDetail(false);
+    const found = scans.find((s) => s.id === id);
+    if (found) {
+      setSelectedScan(found);
+      return;
+    }
+    if (isLoggedIn) {
+      setLoadingDetail(true);
+      try {
+        const scanItem = await fetchScanDetail(id);
+        setSelectedScan(scanItem);
+      } catch (err: any) {
+        alert("Failed to load scan detail: " + err.message);
+      } finally {
+        setLoadingDetail(false);
+      }
     }
   };
 
@@ -91,7 +107,17 @@ export default function ScanHistoryPage() {
     if (!deletingId) return;
     setIsDeleting(true);
     try {
-      await deleteScan(deletingId);
+      if (isLoggedIn) {
+        await deleteScan(deletingId);
+      }
+      if (typeof window !== "undefined") {
+        const raw = localStorage.getItem("agrismart_local_scans");
+        if (raw) {
+          const localList: any[] = JSON.parse(raw);
+          const filtered = localList.filter((s) => s.id !== deletingId);
+          localStorage.setItem("agrismart_local_scans", JSON.stringify(filtered));
+        }
+      }
       if (selectedScan?.id === deletingId) {
         setSelectedScan(null);
       }
@@ -105,65 +131,12 @@ export default function ScanHistoryPage() {
   };
 
   // 1. Loading State
-  if (authLoading || (isLoggedIn && loading && scans.length === 0)) {
+  if (authLoading || (loading && scans.length === 0)) {
     return (
       <div className="w-full" data-testid="history-page">
         <main className="mx-auto max-w-[1400px] px-5 py-16 text-center space-y-4">
           <div className="size-12 border-4 border-[#b77731] border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-xs font-bold text-[#19352b]/70">Loading your scan archive...</p>
-        </main>
-      </div>
-    );
-  }
-
-  // 2. Unauthenticated State
-  if (!isLoggedIn) {
-    return (
-      <div className="w-full" data-testid="history-page">
-        <main className="mx-auto max-w-[900px] px-5 py-12 lg:py-20">
-          <div className="rounded-[32px] bg-[#fff8eb] p-8 sm:p-14 border border-[#19352b]/10 shadow-[0_20px_55px_rgba(25,53,43,.06)] text-center space-y-6">
-            <div className="size-16 rounded-[22px] bg-[#19352b] text-[#f6c86e] flex items-center justify-center mx-auto shadow-sm">
-              <History size={28} />
-            </div>
-
-            <div className="space-y-3 max-w-lg mx-auto">
-              <span className="section-kicker justify-center">
-                <span>08</span> PERSONAL SCAN ARCHIVE
-              </span>
-              <h1 className="font-heading text-3xl sm:text-4xl font-medium tracking-[-.04em] text-[#19352b]">
-                Saved scan <em className="font-serif font-normal italic text-[#b77731]">history.</em>
-              </h1>
-              <p className="text-xs leading-6 text-[#19352b]/65">
-                Log in to view your complete chronological scan archive, search previous crop diagnoses, and review actionable treatment protocols.
-              </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
-              <Link
-                href="/login?redirect=/history"
-                className="w-full sm:w-auto px-7 py-3 rounded-full bg-[#19352b] text-[#fff8eb] font-bold text-xs shadow-sm hover:opacity-95 transition-all flex items-center justify-center gap-2"
-              >
-                <span>Log In to View History</span>
-                <ArrowRight size={14} />
-              </Link>
-              <Link
-                href="/signup?redirect=/history"
-                className="w-full sm:w-auto px-7 py-3 rounded-full bg-[#f5f1e8] hover:bg-[#e9d6b5]/60 text-[#19352b] border border-[#19352b]/15 font-bold text-xs transition-all flex items-center justify-center"
-              >
-                Create Free Account
-              </Link>
-            </div>
-
-            <div className="pt-6 border-t border-[#19352b]/08 text-center">
-              <Link
-                href="/detect"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#b77731] hover:underline"
-              >
-                <Microscope size={14} />
-                <span>Use Free Guest AI Disease Scanner →</span>
-              </Link>
-            </div>
-          </div>
         </main>
       </div>
     );

@@ -322,6 +322,8 @@ async def predict_disease(
             "guidance": result.get("guidance", []),
             "top_predictions": top_preds,
             "gradcam": gradcam_base64,
+            "gradcam_url": f"data:image/png;base64,{gradcam_base64}" if gradcam_base64 else None,
+            "gradcam_data_uri": f"data:image/png;base64,{gradcam_base64}" if gradcam_base64 else None,
             "quality": quality,
             "image_quality": quality,
             "image_path": f"/uploads/{filename}",

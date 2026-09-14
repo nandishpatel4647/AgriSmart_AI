@@ -54,7 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="mx-auto flex max-w-[1400px] flex-col justify-between gap-4 text-xs text-[#19352b]/55 sm:flex-row sm:items-center">
             <span className="font-heading text-sm font-semibold text-[#19352b]" data-testid="footer-brand">AgriSmart AI</span>
             <span data-testid="footer-note">Intelligent agriculture for a more sustainable future.</span>
-            <span data-testid="footer-disclaimer">Production Ready · 33 Diagnostic Classes</span>
+            <span data-testid="footer-trademark" className="font-heading font-bold tracking-wider text-[#b77731]">HACKELITE | SIH &apos;26</span>
           </div>
         </footer>
       </body>

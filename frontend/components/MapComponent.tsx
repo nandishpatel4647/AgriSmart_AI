@@ -169,60 +169,68 @@ export default function MapComponent() {
   return (
     <div className="flex flex-col gap-6">
       {/* Top Analytics Metrics Dashboard */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-zinc-900/90 border border-emerald-500/20 rounded-xl p-4 flex items-center gap-4">
-          <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-lg text-2xl">📐</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="bg-[#fff8eb] border border-[#19352b]/10 rounded-[26px] p-6 flex items-center gap-4 shadow-[0_12px_36px_rgba(25,53,43,.04)]">
+          <div className="flex size-12 items-center justify-center rounded-2xl bg-[#f5f1e8] text-[#b77731] text-2xl shrink-0">📐</div>
           <div>
-            <div className="text-xs text-zinc-400 font-medium">Total Mapped Area</div>
-            <div className="text-2xl font-bold text-emerald-400">{totalAcres} <span className="text-sm font-normal text-zinc-400">Acres</span></div>
+            <div className="text-[10px] font-bold uppercase tracking-[.16em] text-[#19352b]/50">Total Mapped Area</div>
+            <div className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-[#19352b] mt-0.5">
+              {totalAcres} <span className="text-xs font-bold text-[#b77731]">Acres</span>
+            </div>
           </div>
         </div>
 
-        <div className="bg-zinc-900/90 border border-emerald-500/20 rounded-xl p-4 flex items-center gap-4">
-          <div className="p-3 bg-blue-500/10 text-blue-400 rounded-lg text-2xl">🗺️</div>
+        <div className="bg-[#fff8eb] border border-[#19352b]/10 rounded-[26px] p-6 flex items-center gap-4 shadow-[0_12px_36px_rgba(25,53,43,.04)]">
+          <div className="flex size-12 items-center justify-center rounded-2xl bg-[#f5f1e8] text-[#19352b] text-2xl shrink-0">🗺️</div>
           <div>
-            <div className="text-xs text-zinc-400 font-medium">Registered Fields</div>
-            <div className="text-2xl font-bold text-white">{farms.length} <span className="text-sm font-normal text-zinc-400">Plots</span></div>
+            <div className="text-[10px] font-bold uppercase tracking-[.16em] text-[#19352b]/50">Registered Fields</div>
+            <div className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-[#19352b] mt-0.5">
+              {farms.length} <span className="text-xs font-bold text-[#b77731]">Plots</span>
+            </div>
           </div>
         </div>
 
-        <div className="bg-zinc-900/90 border border-emerald-500/20 rounded-xl p-4 flex items-center gap-4">
-          <div className="p-3 bg-red-500/10 text-red-400 rounded-lg text-2xl">🚨</div>
+        <div className="bg-[#fff8eb] border border-[#19352b]/10 rounded-[26px] p-6 flex items-center gap-4 shadow-[0_12px_36px_rgba(25,53,43,.04)]">
+          <div className="flex size-12 items-center justify-center rounded-2xl bg-[#f5f1e8] text-[#b77731] text-2xl shrink-0">🚨</div>
           <div>
-            <div className="text-xs text-zinc-400 font-medium">Active Stress Alerts</div>
-            <div className="text-2xl font-bold text-red-400">{alerts.length}</div>
+            <div className="text-[10px] font-bold uppercase tracking-[.16em] text-[#19352b]/50">Active Stress Alerts</div>
+            <div className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-[#19352b] mt-0.5">
+              {alerts.length} <span className="text-xs font-bold text-[#10b981]">Monitored</span>
+            </div>
           </div>
         </div>
 
-        <div className="bg-zinc-900/90 border border-emerald-500/20 rounded-xl p-4 flex items-center gap-4">
-          <div className="p-3 bg-teal-500/10 text-teal-400 rounded-lg text-2xl">📡</div>
+        <div className="bg-[#fff8eb] border border-[#19352b]/10 rounded-[26px] p-6 flex items-center gap-4 shadow-[0_12px_36px_rgba(25,53,43,.04)]">
+          <div className="flex size-12 items-center justify-center rounded-2xl bg-[#f5f1e8] text-[#19352b] text-2xl shrink-0">📡</div>
           <div>
-            <div className="text-xs text-zinc-400 font-medium">Satellite Health Index</div>
-            <div className="text-2xl font-bold text-teal-400">{indexMode} <span className="text-xs text-zinc-400 font-normal">Active</span></div>
+            <div className="text-[10px] font-bold uppercase tracking-[.16em] text-[#19352b]/50">Satellite Health Index</div>
+            <div className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-[#19352b] mt-0.5">
+              {indexMode} <span className="text-xs font-bold text-[#b77731]">Sentinel-2</span>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 h-[720px]">
-        <div className="md:col-span-3 h-full rounded-2xl overflow-hidden border border-emerald-500/20 shadow-xl relative">
+        <div className="md:col-span-3 h-full rounded-[28px] overflow-hidden border border-[#19352b]/15 shadow-xl relative">
           
           {/* Layer Index Switcher Bar */}
-          <div className="absolute top-4 left-4 z-[400] bg-zinc-900/90 backdrop-blur border border-emerald-500/30 p-1.5 rounded-xl shadow-lg flex gap-1">
+          <div className="absolute top-4 left-4 z-[400] bg-[#fff8eb]/95 backdrop-blur-md border border-[#19352b]/15 p-1 rounded-full shadow-lg flex gap-1">
             <button
               onClick={() => setIndexMode("NDVI")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${indexMode === "NDVI" ? "bg-emerald-600 text-white" : "text-zinc-400 hover:text-white"}`}
+              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${indexMode === "NDVI" ? "bg-[#19352b] text-[#fff8eb] shadow-xs" : "text-[#19352b]/70 hover:text-[#19352b]"}`}
             >
               NDVI (Canopy)
             </button>
             <button
               onClick={() => setIndexMode("NDWI")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${indexMode === "NDWI" ? "bg-blue-600 text-white" : "text-zinc-400 hover:text-white"}`}
+              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${indexMode === "NDWI" ? "bg-[#19352b] text-[#fff8eb] shadow-xs" : "text-[#19352b]/70 hover:text-[#19352b]"}`}
             >
               NDWI (Moisture)
             </button>
             <button
               onClick={() => setIndexMode("NDRE")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${indexMode === "NDRE" ? "bg-purple-600 text-white" : "text-zinc-400 hover:text-white"}`}
+              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${indexMode === "NDRE" ? "bg-[#19352b] text-[#fff8eb] shadow-xs" : "text-[#19352b]/70 hover:text-[#19352b]"}`}
             >
               NDRE (Nitrogen)
             </button>
@@ -232,7 +240,7 @@ export default function MapComponent() {
           <div className="absolute bottom-4 left-4 z-[400]">
             <button
               onClick={exportGeoJSON}
-              className="bg-zinc-900/90 hover:bg-zinc-800 backdrop-blur border border-emerald-500/40 text-emerald-400 px-3 py-2 rounded-xl text-xs font-medium shadow-lg transition flex items-center gap-2"
+              className="bg-[#fff8eb]/95 hover:bg-[#fff8eb] backdrop-blur-md border border-[#19352b]/15 text-[#19352b] px-4 py-2 rounded-full text-xs font-bold shadow-lg transition flex items-center gap-2 cursor-pointer"
             >
               <span>📥</span> Export GeoJSON
             </button>
@@ -286,15 +294,15 @@ export default function MapComponent() {
           </MapContainer>
           
           {/* Drawing Controls Overlay */}
-          <div className="absolute top-4 right-4 z-[400] bg-zinc-900/90 backdrop-blur border border-emerald-500/30 p-4 rounded-xl shadow-lg w-80">
-            <h3 className="text-emerald-400 font-medium mb-1">Map New Field</h3>
-            <p className="text-xs text-zinc-400 mb-3">Click on the satellite map to mark field corners.</p>
+          <div className="absolute top-4 right-4 z-[400] bg-[#fff8eb]/95 backdrop-blur-md border border-[#19352b]/15 p-5 rounded-[24px] shadow-xl w-80 text-[#19352b]">
+            <h3 className="font-heading text-base font-bold text-[#19352b] mb-1">Map New Field</h3>
+            <p className="text-xs text-[#19352b]/60 mb-3">Click on the satellite map to mark field corners.</p>
             
             {points.length > 0 && (
-              <div className="bg-zinc-800/80 border border-zinc-700/60 rounded-lg p-2.5 mb-3 text-xs flex justify-between items-center text-zinc-300">
-                <span>Points Marked: <strong className="text-emerald-400">{points.length}</strong></span>
+              <div className="bg-[#f5f1e8] border border-[#19352b]/10 rounded-xl p-2.5 mb-3 text-xs flex justify-between items-center text-[#19352b]">
+                <span>Points Marked: <strong className="text-[#b77731]">{points.length}</strong></span>
                 {points.length >= 3 && (
-                  <span>Size: <strong className="text-emerald-400">{drawingArea.acres} Acres</strong> ({drawingArea.hectares} Ha)</span>
+                  <span>Size: <strong className="text-[#b77731]">{drawingArea.acres} Acres</strong></span>
                 )}
               </div>
             )}
@@ -302,7 +310,7 @@ export default function MapComponent() {
             <input 
               type="text" 
               placeholder="Farm Name (e.g. North Plot)" 
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-sm text-white mb-3 focus:outline-none focus:border-emerald-500"
+              className="w-full bg-[#f5f1e8] border border-[#19352b]/15 rounded-xl p-2.5 text-xs text-[#19352b] mb-3 focus:outline-none focus:border-[#b77731] placeholder:text-[#19352b]/40 font-medium"
               value={farmName}
               onChange={e => setFarmName(e.target.value)}
             />
@@ -310,14 +318,14 @@ export default function MapComponent() {
             <div className="flex gap-2">
               <button 
                 onClick={clearDrawing}
-                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white py-2 rounded-lg text-xs font-medium transition"
+                className="flex-1 bg-[#f5f1e8] hover:bg-[#e9d6b5]/50 text-[#19352b] py-2 rounded-full text-xs font-bold transition cursor-pointer border border-[#19352b]/10"
               >
                 Clear
               </button>
               <button 
                 onClick={saveFarm}
                 disabled={isSaving || points.length < 3 || !farmName}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded-lg text-xs font-medium transition disabled:opacity-50"
+                className="flex-1 bg-[#b77731] hover:bg-[#a36829] text-[#fff8eb] py-2 rounded-full text-xs font-bold transition disabled:opacity-50 cursor-pointer shadow-xs"
               >
                 {isSaving ? "Saving..." : "Save Field"}
               </button>
@@ -326,44 +334,43 @@ export default function MapComponent() {
         </div>
         
         {/* Alert Sidebar */}
-        <div className="bg-zinc-900 border border-emerald-500/20 rounded-2xl p-5 overflow-y-auto flex flex-col justify-between">
+        <div className="bg-[#fff8eb] border border-[#19352b]/12 rounded-[28px] p-6 shadow-[0_12px_40px_rgba(25,53,43,.04)] overflow-y-auto flex flex-col justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-emerald-400 mb-2 flex items-center gap-2">
+            <h2 className="font-heading text-lg font-bold text-[#19352b] mb-1 flex items-center gap-2">
               <span>🚨</span> Crop Stress Alerts
             </h2>
-            <p className="text-xs text-zinc-400 mb-4">AI engine continuously scans satellite indices for stress indicators.</p>
+            <p className="text-xs text-[#19352b]/60 mb-4">AI engine continuously scans satellite indices for stress indicators.</p>
             
             <div className="space-y-3">
               {alerts.length === 0 ? (
-                <div className="text-center p-4 bg-zinc-800/40 rounded-xl border border-zinc-800 text-zinc-500 text-xs">
-                  No stress alerts detected recently.
+                <div className="text-center p-5 bg-[#f5f1e8]/70 rounded-2xl border border-[#19352b]/08 text-[#19352b]/60 text-xs">
+                  No stress alerts detected recently. Field vigor index is healthy.
                 </div>
               ) : (
                 alerts.map((alert) => {
                   const isWaterDeficit = alert.message.includes("WATER") || alert.message.includes("water");
-                  const isNutrient = alert.message.includes("NUTRIENT") || alert.message.includes("chlorophyll");
                   
                   return (
-                    <div key={alert.id} className="p-3.5 bg-red-950/30 border border-red-500/30 rounded-xl">
+                    <div key={alert.id} className="p-3.5 bg-[#fbf0ea] border border-[#b77731]/20 rounded-2xl">
                       <div className="flex justify-between items-start mb-1">
-                        <h4 className="text-red-400 font-medium text-xs">{alert.farm_name}</h4>
-                        <span className="text-[10px] bg-red-900/60 text-red-300 px-1.5 py-0.5 rounded font-mono">NDVI {alert.ndvi_value}</span>
+                        <h4 className="text-[#b77731] font-bold text-xs">{alert.farm_name}</h4>
+                        <span className="text-[10px] bg-[#fff8eb] text-[#19352b] px-1.5 py-0.5 rounded font-mono font-bold border border-[#19352b]/10">NDVI {alert.ndvi_value}</span>
                       </div>
-                      <p className="text-[11px] text-zinc-300 mb-2.5 leading-relaxed">{alert.message}</p>
+                      <p className="text-[11px] text-[#19352b]/80 mb-2.5 leading-relaxed font-medium">{alert.message}</p>
                       
                       {/* Action Trigger Buttons */}
-                      <div className="flex gap-2 mt-2 pt-2 border-t border-red-500/20">
+                      <div className="flex gap-2 mt-2 pt-2 border-t border-[#b77731]/15">
                         {isWaterDeficit ? (
                           <Link 
                             href="/irrigation" 
-                            className="flex-1 bg-blue-900/60 hover:bg-blue-800 text-blue-200 text-[10px] py-1 rounded text-center transition font-medium"
+                            className="flex-1 bg-[#19352b] hover:bg-[#19352b]/90 text-[#fff8eb] text-[10px] py-1.5 rounded-full text-center transition font-bold"
                           >
                             💧 Open Irrigation
                           </Link>
                         ) : (
                           <Link 
                             href="/detect" 
-                            className="flex-1 bg-emerald-900/60 hover:bg-emerald-800 text-emerald-200 text-[10px] py-1 rounded text-center transition font-medium"
+                            className="flex-1 bg-[#b77731] hover:bg-[#a36829] text-[#fff8eb] text-[10px] py-1.5 rounded-full text-center transition font-bold"
                           >
                             🔬 Disease Scan
                           </Link>
@@ -376,7 +383,7 @@ export default function MapComponent() {
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-zinc-800 text-[10px] text-zinc-500 text-center">
+          <div className="mt-4 pt-3 border-t border-[#19352b]/08 text-[10px] text-[#19352b]/50 text-center font-medium">
             Satellite Scan Frequency: Every 60s
           </div>
         </div>
