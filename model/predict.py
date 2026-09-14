@@ -30,6 +30,10 @@ CLASS_MAPPING_PATH = PROJECT_ROOT / "weights" / "class_mapping.json"
 
 # Centroids & OOD configuration
 CENTROIDS_PATH = PROJECT_ROOT / "ml" / "artifacts" / "class_centroids.pt"
+CLASS_THRESHOLDS_PATH = PROJECT_ROOT / "weights" / "class_thresholds.json"
+if not CLASS_THRESHOLDS_PATH.exists():
+    CLASS_THRESHOLDS_PATH = PROJECT_ROOT / "ml" / "artifacts" / "class_thresholds.json"
+
 SUPPORTED_CROPS = [
     "Apple",
     "Cherry",
@@ -41,7 +45,7 @@ SUPPORTED_CROPS = [
     "Strawberry",
     "Tomato",
 ]
-OOD_COSINE_THRESHOLD = 0.95
+OOD_COSINE_THRESHOLD = 0.85 # Fallback threshold
 OOD_ENERGY_THRESHOLD = 100000.0 # Disabled as it overlaps with ID
 DISEASE_GUIDANCE = {
     # Tomato diseases
@@ -439,6 +443,16 @@ def _load_model(weights_path: str = None, device: str = None):
             print(f"[WARN] Could not load class centroids: {e}")
     _model_cache["centroids"] = centroids
     
+    # Load Per-Class Thresholds
+    class_thresholds = {}
+    if CLASS_THRESHOLDS_PATH.exists():
+        try:
+            with open(CLASS_THRESHOLDS_PATH) as f:
+                class_thresholds = json.load(f)
+        except Exception as e:
+            print(f"[WARN] Could not load class thresholds: {e}")
+    _model_cache["class_thresholds"] = class_thresholds
+    
     return model, checkpoint, dev, transform
 
 
@@ -477,6 +491,14 @@ def predict(image_path: str, weights_path: str = None, top_k: int = 3) -> dict:
     # Free Energy Score: E(x) = -T * logsumexp(z / T)
     energy = float((-1.0 * torch.logsumexp(output, dim=1)).item())
     
+    # Predicted class
+    pred_idx = int(output.argmax(dim=1).item())
+    pred_class_name = idx_to_class[str(pred_idx)]
+
+    # Per-Class Threshold lookup
+    class_thresholds = _model_cache.get("class_thresholds", {})
+    required_threshold = float(class_thresholds.get(pred_class_name, OOD_COSINE_THRESHOLD))
+
     # Nearest Class Centroid Cosine Similarity
     centroids = _model_cache.get("centroids")
     max_sim = 1.0
@@ -484,15 +506,13 @@ def predict(image_path: str, weights_path: str = None, top_k: int = 3) -> dict:
         sims = torch.mv(centroids.to(device), feat_norm.squeeze(0))
         max_sim = float(sims.max().item())
         
-    # Calibrated OOD Detection:
-    # Empirical Threshold: max_sim < 0.58 indicates sample is outside the classes
+    # Calibrated OOD Detection with per-class threshold
     is_ood = False
     error_type = None
     
-    if max_sim < OOD_COSINE_THRESHOLD or energy > OOD_ENERGY_THRESHOLD:
+    if max_sim < required_threshold or energy > OOD_ENERGY_THRESHOLD:
         is_ood = True
-        # Do not use energy alone to classify an image as non-plant (unseen plants like wheat can have diffuse energy).
-        # Only categorize as NON_PLANT_IMAGE if feature representation is deeply decoupled from plant domain (< 0.20).
+        # Do not use energy alone to classify an image as non-plant
         if max_sim < 0.20:
             error_type = "NON_PLANT_IMAGE"
         else:
