@@ -2,16 +2,16 @@
 
 import React, { useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Check, Eye, FileImage, Info, Leaf, LoaderCircle, ShieldAlert, Sparkles, UploadCloud, Volume2, X } from "lucide-react";
+import { ArrowUpRight, Check, FileImage, Leaf, LoaderCircle, Shield, ShieldAlert, Sparkles, UploadCloud } from "lucide-react";
 import { apiUpload } from "../lib/api";
 import type { DetectionResponse, PhotoQuality } from "../lib/types";
 
 const SAMPLE_LEAVES = [
-  { name: "Tomato Late Blight", path: "/samples/tomato_late_blight.jpg", crop: "Tomato" },
-  { name: "Apple Scab", path: "/samples/apple_scab.jpg", crop: "Apple" },
-  { name: "Corn Common Rust", path: "/samples/corn_common_rust.jpg", crop: "Corn" },
-  { name: "Potato Early Blight", path: "/samples/potato_early_blight.jpg", crop: "Potato" },
-  { name: "Tulsi (Unseen Species OOD)", path: "/samples/tulsi_leaf.jpg", crop: "Unsupported" },
+  { name: "Tomato Late Blight", path: "/samples/tomato_late_blight.jpg" },
+  { name: "Apple Scab", path: "/samples/apple_scab.jpg" },
+  { name: "Corn Common Rust", path: "/samples/corn_common_rust.jpg" },
+  { name: "Potato Early Blight", path: "/samples/potato_early_blight.jpg" },
+  { name: "Tulsi (Unseen Species OOD)", path: "/samples/tulsi_leaf.jpg" },
 ];
 
 export default function DetectPage() {
@@ -42,7 +42,7 @@ export default function DetectPage() {
       const sampleFile = new File([blob], samplePath.split("/").pop() || "sample.jpg", { type: "image/jpeg" });
       setFile(sampleFile);
       setPreviewUrl(samplePath);
-      // Run diagnosis directly
+      // Run trusted diagnosis directly
       const data = await apiUpload<DetectionResponse>("/diagnose", sampleFile);
       setResult(data);
     } catch (e: any) {
@@ -60,7 +60,7 @@ export default function DetectPage() {
       const data = await apiUpload<DetectionResponse>("/diagnose", file);
       setResult(data);
     } catch (e: any) {
-      setError(e.message || "Diagnosis failed. Please check backend status.");
+      setError(e.message || "Diagnosis failed. Please check backend connection.");
     } finally {
       setLoading(false);
     }
@@ -70,42 +70,37 @@ export default function DetectPage() {
     <div className="w-full" data-testid="detect-page">
       <main className="relative z-10 mx-auto max-w-[1400px] px-5 py-8 sm:px-8 lg:px-12 lg:py-14">
         
-        {/* Header kicker & title */}
+        {/* Header kicker matching Screenshot 3 */}
         <div className="section-kicker" data-testid="detect-page-kicker">
-          <span>02</span> Diagnostic scan
+          <span>01</span> DETECT DISEASE
         </div>
-        <div className="mt-5 grid gap-10 lg:grid-cols-[.9fr_1.1fr] lg:items-end">
-          <div>
-            <h1 className="page-heading" data-testid="detect-page-heading">
-              Check a leaf with <em>calibrated</em> certainty.
-            </h1>
-            <p className="mt-5 max-w-[460px] text-sm leading-6 text-[#19352b]/65" data-testid="detect-page-description">
-              Upload a clear field photo. The system checks sharpness, brightness, and leaf structure before running the 33-class diagnostic classifier.
-            </p>
 
-            {/* Quick Sample Selector */}
-            <div className="mt-7">
-              <span className="text-[10px] font-bold uppercase tracking-[.14em] text-[#19352b]/50 block mb-2.5">
-                Quick Test Samples
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {SAMPLE_LEAVES.map((sample) => (
-                  <button
-                    key={sample.name}
-                    type="button"
-                    onClick={() => selectSample(sample.path)}
-                    disabled={loading}
-                    className="rounded-full border border-[#19352b]/15 bg-[#fff8eb] px-3 py-1.5 text-[11px] font-semibold text-[#19352b]/80 hover:bg-[#19352b] hover:text-[#fff8eb] transition-colors cursor-pointer"
-                  >
-                    {sample.name}
-                  </button>
-                ))}
-              </div>
-            </div>
+        {/* Title area matching Screenshot 3 */}
+        <div className="mt-5 flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+          <div>
+            <h1 className="font-heading text-[clamp(3.5rem,7vw,6.5rem)] font-medium leading-[0.92] tracking-[-0.075em] text-[#19352b]" data-testid="detect-page-heading">
+              Give us a <em className="font-serif font-normal italic text-[#b77731]">leaf.</em>
+            </h1>
+            <p className="mt-5 max-w-[500px] text-sm leading-6 text-[#19352b]/65" data-testid="detect-page-description">
+              The gate checks sharpness, light and whether the image reads as leaf-like before a disease model can speak.
+            </p>
           </div>
 
-          {/* Upload card */}
-          <div className="rounded-[32px] bg-[#fff8eb] p-7 shadow-[0_20px_55px_rgba(25,53,43,.06)] border border-[#19352b]/10 sm:p-9" data-testid="detect-upload-card">
+          {/* Right Floating Badge matching Screenshot 3 */}
+          <div className="flex items-center gap-2 rounded-full border border-[#19352b]/15 bg-[#fff8eb] px-4 py-2 text-xs font-semibold text-[#19352b]/70 shadow-2xs w-fit">
+            <Shield size={14} className="text-[#b77731]" />
+            <span>Confidence is never invented</span>
+          </div>
+        </div>
+
+        {/* Two-Column Layout matching Screenshot 3 */}
+        <section className="mt-10 grid gap-7 lg:grid-cols-[1.1fr_0.9fr]">
+          
+          {/* Left Card: Upload Card */}
+          <div 
+            className="rounded-[32px] bg-[#fff8eb]/95 p-8 shadow-[0_20px_55px_rgba(25,53,43,.06)] border border-[#19352b]/10 flex flex-col justify-between"
+            data-testid="detect-upload-card"
+          >
             <div
               onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
               onDragLeave={() => setDragging(false)}
@@ -114,15 +109,15 @@ export default function DetectPage() {
                 setDragging(false);
                 accept(e.dataTransfer.files?.[0]);
               }}
-              className={`relative flex min-h-[220px] flex-col items-center justify-center rounded-[24px] border-2 border-dashed p-6 text-center transition-colors ${
-                dragging ? "border-[#b77731] bg-[#e9d6b5]/30" : "border-[#19352b]/15 bg-[#f5f1e8]/60"
+              className={`relative flex min-h-[280px] flex-col items-center justify-center rounded-[26px] border-2 border-dashed p-7 text-center transition-colors ${
+                dragging ? "border-[#b77731] bg-[#e9d6b5]/30" : "border-[#19352b]/15 bg-[#f5f1e8]/50"
               }`}
               data-testid="detect-dropzone"
             >
               {previewUrl ? (
                 <div className="relative w-full flex flex-col items-center">
                   <div className="relative max-h-[220px] w-full max-w-[320px] overflow-hidden rounded-2xl shadow-sm border border-[#19352b]/10">
-                    <img src={previewUrl} alt="Leaf Preview" className="h-full w-full object-cover" />
+                    <img src={previewUrl} alt="Selected leaf" className="h-full w-full object-cover" />
                   </div>
                   <button
                     type="button"
@@ -134,18 +129,22 @@ export default function DetectPage() {
                 </div>
               ) : (
                 <>
-                  <span className="flex size-12 items-center justify-center rounded-[16px] bg-[#19352b]/08 text-[#b77731] mb-4">
-                    <UploadCloud size={24} />
+                  <span className="flex size-14 items-center justify-center rounded-[18px] bg-[#fff8eb] text-[#b77731] shadow-xs mb-4">
+                    <UploadCloud size={26} />
                   </span>
-                  <p className="text-sm font-bold text-[#19352b]">Drag a leaf photo here</p>
-                  <p className="mt-1 text-xs text-[#19352b]/55">Supports JPG, PNG, WEBP (under 15MB)</p>
+                  <h3 className="text-xl font-heading font-medium tracking-[-.02em] text-[#19352b]">
+                    Drop a crop photo here
+                  </h3>
+                  <p className="mt-2 text-xs text-[#19352b]/55 max-w-[280px]">
+                    JPG, PNG or WEBP. One clear leaf, even light, no filters.
+                  </p>
                   <button
                     type="button"
                     onClick={() => inputRef.current?.click()}
-                    className="mt-4 rounded-full bg-[#19352b] px-5 py-2 text-xs font-bold text-[#fff8eb] transition-transform duration-200 hover:-translate-y-0.5 cursor-pointer"
+                    className="mt-5 flex items-center gap-2 rounded-full bg-[#19352b] px-6 py-2.5 text-xs font-bold text-[#fff8eb] transition-transform duration-200 hover:-translate-y-0.5 cursor-pointer shadow-sm"
                     data-testid="detect-choose-button"
                   >
-                    Choose Image
+                    <FileImage size={14} /> Choose Image
                   </button>
                 </>
               )}
@@ -159,47 +158,97 @@ export default function DetectPage() {
               />
             </div>
 
-            {/* Action Bar */}
-            <div className="mt-5 flex items-center justify-between">
-              <span className="text-[11px] text-[#19352b]/60 flex items-center gap-1.5">
-                <Leaf size={14} className="text-[#b77731]" />
-                {file ? file.name : "No image selected"}
+            {/* Quick Sample Leaves Strip */}
+            <div className="mt-5 pt-4 border-t border-[#19352b]/08">
+              <span className="text-[10px] font-bold uppercase tracking-[.14em] text-[#19352b]/45 block mb-2">
+                Or test with verified sample leaves:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {SAMPLE_LEAVES.map((sample) => (
+                  <button
+                    key={sample.name}
+                    type="button"
+                    onClick={() => selectSample(sample.path)}
+                    disabled={loading}
+                    className="rounded-full border border-[#19352b]/15 bg-[#fff8eb] px-3 py-1 text-[10px] font-semibold text-[#19352b]/70 hover:bg-[#19352b] hover:text-[#fff8eb] transition-colors cursor-pointer"
+                  >
+                    {sample.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Card: Dark Forest Green Card matching Screenshot 3 */}
+          <div 
+            className="rounded-[32px] bg-[#19352b] p-8 sm:p-10 text-[#fff8eb] shadow-[0_24px_60px_rgba(25,53,43,.18)] flex flex-col justify-between"
+            data-testid="detect-info-card"
+          >
+            <div>
+              <span className="flex size-11 items-center justify-center rounded-[14px] bg-[#fff8eb]/10 text-[#f6c86e] mb-6">
+                <Leaf size={22} />
               </span>
 
+              <h2 className="font-heading text-3xl font-medium tracking-[-.04em] text-[#fff8eb]">
+                A scan that knows<br />when to pause.
+              </h2>
+              <p className="mt-4 text-xs leading-6 text-white/70">
+                Poor photos and non-leaf images are stopped before diagnosis. If model weights are absent, you will see that too.
+              </p>
+
+              {/* Quality Checklist */}
+              <div className="mt-8 pt-6 border-t border-white/10 space-y-3.5">
+                <div className="flex items-center gap-3 text-xs text-white/80">
+                  <Check size={16} className="text-[#f6c86e]" />
+                  <span>Brightness check</span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-white/80">
+                  <Check size={16} className="text-[#f6c86e]" />
+                  <span>Blur and edge check</span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-white/80">
+                  <Check size={16} className="text-[#f6c86e]" />
+                  <span>Leaf-likelihood check</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Button matching Screenshot 3: Run trusted scan ↗ */}
+            <div className="mt-8 pt-6 border-t border-white/10">
               <button
                 type="button"
                 onClick={handleScan}
                 disabled={!file || loading}
-                className="rounded-full bg-[#b77731] px-6 py-2.5 text-xs font-bold text-[#fff8eb] shadow-sm transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 rounded-full bg-[#8c7b4c] hover:bg-[#9c8b5c] px-7 py-3.5 text-xs font-bold text-[#fff8eb] transition-transform duration-200 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-md"
                 data-testid="detect-submit-button"
               >
                 {loading ? (
                   <>
-                    <LoaderCircle size={15} className="animate-spin" />
-                    <span>Analyzing leaf...</span>
+                    <LoaderCircle size={16} className="animate-spin" />
+                    <span>Analyzing leaf features...</span>
                   </>
                 ) : (
                   <>
-                    <Sparkles size={15} />
-                    <span>Run Diagnostic Scan</span>
+                    <span>Run trusted scan</span>
+                    <ArrowUpRight size={16} />
                   </>
                 )}
               </button>
             </div>
-
-            {error && (
-              <div className="mt-4 rounded-2xl bg-red-50 border border-red-200 p-3 text-xs text-red-700">
-                {error}
-              </div>
-            )}
           </div>
-        </div>
 
-        {/* Diagnostic Results Section */}
+        </section>
+
+        {/* Diagnostic Results Section with Real ML + Grad-CAM + OOD Protection */}
         {result && (
-          <div className="mt-10 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <ResultCard result={result} previewUrl={previewUrl} heatmapView={heatmapView} setHeatmapView={setHeatmapView} />
-          </div>
+          <section className="mt-10 animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <ResultCard 
+              result={result} 
+              previewUrl={previewUrl} 
+              heatmapView={heatmapView} 
+              setHeatmapView={setHeatmapView} 
+            />
+          </section>
         )}
       </main>
     </div>
@@ -305,9 +354,20 @@ function ResultCard({
           {/* Photo Quality Signals */}
           {quality && (
             <div className="mt-7 pt-6 border-t border-[#19352b]/10 grid grid-cols-3 gap-3">
-              <Quality title="Sharpness" value={`${Math.round(quality.sharpness_score)}/100`} testId="quality-sharpness" />
-              <Quality title="Brightness" value={`${Math.round(quality.brightness_score)}/100`} testId="quality-brightness" />
-              <Quality title="Structure" value={quality.leaf_likelihood === "leaf_candidate" ? "Leaf" : quality.leaf_likelihood} testId="quality-structure" />
+              <div className="rounded-2xl bg-[#f5f1e8] p-3 text-center">
+                <span className="block text-[9px] font-bold uppercase tracking-[.12em] text-[#19352b]/50">Sharpness</span>
+                <strong className="mt-1 block text-sm tracking-[-.02em] text-[#19352b]">{Math.round(quality.sharpness_score)}/100</strong>
+              </div>
+              <div className="rounded-2xl bg-[#f5f1e8] p-3 text-center">
+                <span className="block text-[9px] font-bold uppercase tracking-[.12em] text-[#19352b]/50">Brightness</span>
+                <strong className="mt-1 block text-sm tracking-[-.02em] text-[#19352b]">{Math.round(quality.brightness_score)}/100</strong>
+              </div>
+              <div className="rounded-2xl bg-[#f5f1e8] p-3 text-center">
+                <span className="block text-[9px] font-bold uppercase tracking-[.12em] text-[#19352b]/50">Structure</span>
+                <strong className="mt-1 block text-sm tracking-[-.02em] text-[#19352b]">
+                  {quality.leaf_likelihood === "leaf_candidate" ? "Leaf" : quality.leaf_likelihood}
+                </strong>
+              </div>
             </div>
           )}
         </div>
@@ -387,15 +447,6 @@ function ResultCard({
         </div>
 
       </div>
-    </div>
-  );
-}
-
-function Quality({ title, value, testId }: { title: string; value: string; testId: string }) {
-  return (
-    <div className="rounded-2xl bg-[#f5f1e8] p-3 text-center" data-testid={testId}>
-      <span className="block text-[9px] font-bold uppercase tracking-[.12em] text-[#19352b]/50">{title}</span>
-      <strong className="mt-1 block text-sm tracking-[-.02em] text-[#19352b]">{value}</strong>
     </div>
   );
 }

@@ -23,8 +23,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Ambient subtle leaf-vein texture from Emergent */}
         <div className="pointer-events-none fixed inset-0 z-0 opacity-[0.04] leaf-veins" aria-hidden="true" />
 
-        {/* Emergent AppHeader Navbar */}
-        <Navbar />
+        {/* Emergent AppHeader Navbar (shown only on internal pages, landing page has its own minimal header) */}
+        {pathname !== "/" && <Navbar />}
 
         {/* Main Content Area */}
         <main className="relative z-10 flex-1 w-full min-h-[calc(100vh-140px)] flex flex-col">
