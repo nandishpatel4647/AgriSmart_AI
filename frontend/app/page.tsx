@@ -24,8 +24,10 @@ import {
   Award
 } from "lucide-react";
 import { getWeather, getApiStatus } from "./lib/api";
+import { useAuth } from "./lib/auth";
 
 export default function DashboardPage() {
+  const { user, isLoggedIn } = useAuth();
   const [selectedLocation, setSelectedLocation] = useState("Anand / Ahmedabad — Gujarat (Vegetables & Tobacco)");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [weather, setWeather] = useState<any>(null);
@@ -112,16 +114,26 @@ export default function DashboardPage() {
                   <ArrowRight className="w-4 h-4" />
                 </Link>
 
-                <button 
-                  type="button"
-                  onClick={() => alert("AgriSmart AI Demo: Video preview active.")}
-                  className="px-6 py-3.5 rounded-2xl bg-white/90 hover:bg-white text-emerald-950 font-bold text-sm shadow-lg backdrop-blur-md flex items-center gap-2.5 transition-all hover:scale-102"
-                >
-                  <div className="w-6 h-6 rounded-full bg-emerald-700 text-white flex items-center justify-center">
-                    <Play className="w-3 h-3 fill-white ml-0.5" />
-                  </div>
-                  <span>Watch Demo</span>
-                </button>
+                {isLoggedIn ? (
+                  <Link
+                    href="/my-farm"
+                    className="px-6 py-3.5 rounded-2xl bg-white/90 hover:bg-white text-emerald-950 font-bold text-sm shadow-lg backdrop-blur-md flex items-center gap-2 transition-all hover:scale-102"
+                  >
+                    <span>🌿 My Farm ({user?.name ? user.name.split(" ")[0] : "Farmer"})</span>
+                    <ArrowRight className="w-4 h-4 text-emerald-700" />
+                  </Link>
+                ) : (
+                  <button 
+                    type="button"
+                    onClick={() => alert("AgriSmart AI Demo: Video preview active.")}
+                    className="px-6 py-3.5 rounded-2xl bg-white/90 hover:bg-white text-emerald-950 font-bold text-sm shadow-lg backdrop-blur-md flex items-center gap-2.5 transition-all hover:scale-102"
+                  >
+                    <div className="w-6 h-6 rounded-full bg-emerald-700 text-white flex items-center justify-center">
+                      <Play className="w-3 h-3 fill-white ml-0.5" />
+                    </div>
+                    <span>Watch Demo</span>
+                  </button>
+                )}
               </div>
             </div>
 

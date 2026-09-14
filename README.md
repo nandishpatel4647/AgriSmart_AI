@@ -19,6 +19,25 @@ AgriSmart AI is a **complete farmer decision-support system** that helps farmers
 4. **🌿 Sustainability Score** — Published, reproducible formula scoring farming practices
 5. **🤖 AI Assistant** — Context-grounded farming advisor (Gemini AI + offline fallback)
 6. **📡 IoT Dashboard** — Simulated sensor feed with realistic diurnal patterns *(labeled as simulated)*
+7. **🌱 My Farm & Scan History** — Personal farmer workspace with Recent Crop Health records derived from saved scans
+
+---
+
+## 🌾 Detect First → Personalize Later
+
+AgriSmart AI follows a transparent, farmer-first product philosophy:
+
+- **Guest Farmers (Instant Access):**
+  `Scan → Diagnose → Act`
+  - Completely unrestricted disease detection, Grad-CAM visualization, severity, actionable treatment protocols, and vernacular voice advisories (English, Hindi, Gujarati).
+  - **Zero signup wall** — farmers in the field can diagnose crop diseases in seconds without creating an account or logging in.
+  
+- **Authenticated Farmers (Optional Personalization):**
+  `Scan → Diagnose → Save → Track`
+  - Unlocks **My Farm** dashboard and personal **Scan History**.
+  - Track **Recent Crop Health** (*Status derived from the farmer's latest saved scans*).
+  - Maintain chronological diagnostic records, filter scans by crop, and view detailed actionable protocols over time.
+  - Signup is **100% optional** for disease diagnosis. No advanced predictive farm analytics or automated live sensing claims are made.
 
 ---
 
@@ -35,8 +54,11 @@ AgriSmart AI
 │
 ├── backend/          # FastAPI REST API
 │   ├── main.py                # App entry + model preloading
+│   ├── auth_utils.py          # PBKDF2-HMAC-SHA256 & JWT user isolation
 │   └── routers/
 │       ├── predict_router.py      # Image upload + prediction + Grad-CAM
+│       ├── auth_router.py         # Farmer signup, login, profile management
+│       ├── scans_router.py        # My Farm & Scan History persistence (OOD gated)
 │       ├── weather_router.py      # Open-Meteo + disease risk rules
 │       ├── irrigation_router.py   # FAO-based irrigation engine
 │       ├── sustainability_router.py # Published score formula
@@ -47,6 +69,8 @@ AgriSmart AI
 │   └── app/
 │       ├── page.tsx           # Dashboard
 │       ├── detect/page.tsx    # Disease detection (upload + results)
+│       ├── my-farm/page.tsx   # Personalized farmer workspace
+│       ├── history/page.tsx   # Saved scan history + crop filtering
 │       ├── weather/page.tsx   # Weather intelligence
 │       └── assistant/page.tsx # AI chat assistant
 │
@@ -92,7 +116,7 @@ Bacterial Spot, Early Blight, Late Blight, Leaf Mold, Septoria Leaf Spot, Spider
 | **Accuracy (Supplementary)** | **0.9970 (99.70%)** | Held-out test split (4,025 images) |
 | **Validation Macro-F1** | 0.9967 (99.67%) | Validation split (4,000+ images) |
 | **Model Size** | 15.7 MB (`best_model.pth`) | EfficientNet-B0 fine-tuned |
-| **Test Suite Pass Rate** | **57 / 57 (100%)** | `pytest tests/ -v` (Unit + Integration + OOD + Voice) |
+| **Test Suite Pass Rate** | **71 / 71 (100%)** | `pytest tests/ -v` (Unit + Integration + OOD + Voice + Farm Auth) |
 
 ### Reproduce Evaluation Locally
 
@@ -100,16 +124,16 @@ Bacterial Spot, Early Blight, Late Blight, Leaf Mold, Septoria Leaf Spot, Spider
 # Run official evaluation on test split
 python model/evaluate.py --split test
 
-# Run full test suite (57 automated pytest tests)
+# Run full test suite (71 automated pytest tests)
 python -m pytest tests/ -v
 ```
 
-> **Automated Test Suite Breakdown (57 Passed / 57 Total)**:
+> **Automated Test Suite Breakdown (71 Passed / 71 Total)**:
 > - `tests/test_api.py` (11 tests): FastAPI REST endpoints (health, disease predict, weather, irrigation, sustainability, IoT, advisor)
 > - `tests/test_model.py` (4 tests): PyTorch weights existence, checkpoint structure, single-image inference, top-k ordering
 > - `tests/test_ood.py` (14 tests): Tulsi OOD rejection, unseen foliage rejection, mechanical tractor handling, 9 supported crop regressions, OOD API response schemas
 > - `tests/test_voice.py` (28 tests): Speech sanitizer markdown removal, 18 language normalization aliases (en/hi/gu), multilingual assistant endpoints, genuine Hindi & Gujarati offline fallbacks, OOD refuse-to-guess safety speech guarantees
-> *(Note: The core system originally comprised 29 tests prior to the addition of the Vernacular Voice test suite; all 57 tests now pass simultaneously).*
+> - `tests/test_auth_and_farm.py` (14 tests): Guest detection regression, PBKDF2 hashing, JWT user isolation, empty state verification, Recent Crop Health derivation, server-side OOD save rejection, chronological scan history & crop filtering, scan deletion
 
 ---
 

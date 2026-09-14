@@ -33,6 +33,41 @@ def init_db():
     )
     ''')
     
+    # Users table (Farmer profiles)
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        location TEXT DEFAULT '',
+        farm_size TEXT DEFAULT '',
+        primary_crops TEXT DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    
+    # Scan history table (Saved diagnoses)
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS scan_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        crop_family TEXT NOT NULL,
+        diagnostic_class TEXT NOT NULL,
+        disease_name TEXT NOT NULL,
+        confidence REAL NOT NULL,
+        severity TEXT DEFAULT 'Moderate',
+        is_supported_crop INTEGER DEFAULT 1,
+        ood_status TEXT DEFAULT 'SUPPORTED',
+        image_path TEXT DEFAULT '',
+        guidance TEXT DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    )
+    ''')
+    
     conn.commit()
     conn.close()
 

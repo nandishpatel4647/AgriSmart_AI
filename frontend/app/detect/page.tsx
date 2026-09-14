@@ -28,7 +28,8 @@ import {
   Leaf,
   ChevronRight,
   Volume2,
-  VolumeX
+  VolumeX,
+  BookmarkPlus
 } from "lucide-react";
 import { predictDisease } from "../lib/api";
 import { 
@@ -38,6 +39,7 @@ import {
   stopSpeech, 
   generateAdvisorySpeechText 
 } from "../lib/speech";
+import { useAuth, saveDiagnosisToFarm } from "../lib/auth";
 
 const ALL_33_CONDITIONS = [
   { crop: "Apple", disease: "Apple Scab" },
@@ -76,6 +78,7 @@ const ALL_33_CONDITIONS = [
 ];
 
 export default function DiseaseDetectionPage() {
+  const { user, isLoggedIn } = useAuth();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -84,6 +87,9 @@ export default function DiseaseDetectionPage() {
   const [error, setError] = useState<string | null>(null);
   const [showGradcamOverlay, setShowGradcamOverlay] = useState(true);
   const [showSupportedModal, setShowSupportedModal] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [showGuestModal, setShowGuestModal] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -172,6 +178,35 @@ export default function DiseaseDetectionPage() {
     );
   };
 
+  const handleSaveToFarm = async () => {
+    if (!result || !result.prediction || result.is_supported_crop === false) return;
+
+    if (!isLoggedIn) {
+      setShowGuestModal(true);
+      return;
+    }
+
+    setSaveStatus("saving");
+    setSaveError(null);
+    try {
+      await saveDiagnosisToFarm({
+        crop_family: result.prediction.crop,
+        diagnostic_class: result.prediction.class_name || `${result.prediction.crop}___${result.prediction.disease.replace(/\s+/g, "_")}`,
+        disease_name: result.prediction.disease,
+        confidence: Number(result.prediction.confidence) || 0.95,
+        severity: result.prediction.severity || "Moderate",
+        is_supported_crop: true,
+        ood_status: "in_distribution",
+        guidance: result.prediction.guidance || [],
+        image_path: typeof imagePreview === "string" && imagePreview.startsWith("/samples/") ? imagePreview : undefined
+      });
+      setSaveStatus("saved");
+    } catch (err: any) {
+      setSaveStatus("error");
+      setSaveError(err.message || "Failed to save to My Farm");
+    }
+  };
+
   const resetScanner = () => {
     stopSpeech();
     setIsSpeaking(false);
@@ -181,6 +216,9 @@ export default function DiseaseDetectionPage() {
     setError(null);
     setIsScanning(false);
     setScanStep(0);
+    setSaveStatus("idle");
+    setSaveError(null);
+    setShowGuestModal(false);
   };
 
   return (
@@ -291,6 +329,28 @@ export default function DiseaseDetectionPage() {
       {/* MAIN CONTAINER BELOW HERO */}
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 space-y-8 pb-12">
         
+        {/* Guest Reassurance Banner — Detect First */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 px-6 rounded-2xl bg-emerald-50/90 border border-emerald-200/90 text-emerald-950 text-xs shadow-2xs">
+          <div className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse shrink-0" />
+            <div>
+              <span className="font-bold text-emerald-950">Detect First: </span>
+              <span className="text-emerald-800/90 font-medium">
+                Instant crop disease diagnosis & OOD safety is 100% open for guests. No account or signup required.
+              </span>
+            </div>
+          </div>
+          <div className="text-[11px] font-semibold text-emerald-700 sm:text-right shrink-0">
+            {isLoggedIn ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100/80 text-emerald-900 border border-emerald-300">
+                🌿 Connected: {user?.name || "Farmer"}
+              </span>
+            ) : (
+              <span>Optional: Save diagnoses with a free farmer account</span>
+            )}
+          </div>
+        </div>
+
         {/* 3. MAIN CONTENT — TWO-COLUMN LAYOUT BELOW HERO */}
         {!imagePreview && !result && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -996,6 +1056,123 @@ export default function DiseaseDetectionPage() {
               </div>
             </div>
 
+            {/* 8. SAVE TO MY FARM CTA (DETECT FIRST → PERSONALIZE LATER) */}
+            <div className="glass-card p-6 lg:p-8 rounded-3xl border border-emerald-200/90 bg-linear-to-r from-emerald-50/90 via-emerald-100/30 to-amber-50/50 shadow-sm">
+              {saveStatus === "saved" ? (
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-700 text-white flex items-center justify-center shrink-0 shadow-sm">
+                      <CheckCircle2 className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h4 className="font-serif text-lg font-bold text-emerald-950 flex items-center gap-2">
+                        <span>✓ Saved to My Farm</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          RECORD STORED
+                        </span>
+                      </h4>
+                      <p className="text-xs text-emerald-800/90 font-medium mt-0.5">
+                        Saved to your personal farm records. Recent crop health status is now updated.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto">
+                    <Link
+                      href="/my-farm"
+                      className="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 flex-1 sm:flex-initial"
+                    >
+                      <span>View in My Farm</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                    <Link
+                      href="/history"
+                      className="px-4 py-2.5 rounded-xl bg-white hover:bg-emerald-50 text-emerald-900 border border-emerald-300 font-bold text-xs transition-all flex items-center justify-center flex-1 sm:flex-initial"
+                    >
+                      Scan History
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-700 text-white">
+                        Personal Farm Tracking
+                      </span>
+                      <span className="text-[11px] text-emerald-800 font-semibold">
+                        Detect First → Personalize Later
+                      </span>
+                    </div>
+                    <h3 className="font-serif text-2xl font-bold text-[#0d281e]">
+                      Want to track this crop over time?
+                    </h3>
+                    <p className="text-xs text-gray-600 max-w-xl leading-relaxed">
+                      Save this {result.prediction.crop} diagnosis to your personal farm dashboard to maintain historical scan records, observe status over time, and protect crop yield.
+                    </p>
+                    {saveError && (
+                      <p className="text-xs font-bold text-red-600 pt-1">
+                        ⚠️ {saveError}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3 shrink-0 w-full md:w-auto">
+                    <button
+                      type="button"
+                      disabled={saveStatus === "saving"}
+                      onClick={handleSaveToFarm}
+                      className="w-full md:w-auto px-6 py-3 rounded-2xl green-gradient-bg text-white font-bold text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                    >
+                      <BookmarkPlus className="w-4 h-4" />
+                      <span>{saveStatus === "saving" ? "Saving Record..." : "Save to My Farm"}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </div>
+        )}
+
+        {/* GUEST UPGRADE MODAL — WANT TO TRACK THIS CROP OVER TIME? */}
+        {showGuestModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fadeIn">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full border border-emerald-200 shadow-2xl space-y-5 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto shadow-xs">
+                <BookmarkPlus className="w-7 h-7 text-emerald-700" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-serif text-2xl font-bold text-emerald-950">
+                  Want to track this crop over time?
+                </h3>
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  Create a free farmer account to save this {result?.prediction?.crop || "crop"} diagnosis, view recent crop health records, and build seasonal scan history.
+                </p>
+              </div>
+
+              <div className="space-y-2.5 pt-2">
+                <Link
+                  href="/signup?redirect=/detect"
+                  className="w-full py-3 rounded-xl green-gradient-bg text-white font-bold text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center gap-2"
+                >
+                  <span>Create Free Account</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+                <Link
+                  href="/login?redirect=/detect"
+                  className="w-full py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-900 font-bold text-xs border border-emerald-200 transition-all block"
+                >
+                  Log In to Existing Account
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setShowGuestModal(false)}
+                  className="w-full py-2 text-xs font-semibold text-gray-500 hover:text-gray-800 transition-colors"
+                >
+                  Continue as Guest
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
