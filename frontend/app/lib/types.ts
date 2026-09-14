@@ -23,6 +23,8 @@ export interface DetectionResponse {
   gradcam_url?: string | null;
   ood_status?: string | null;
   is_ood?: boolean;
+  is_supported_crop?: boolean;
+  out_of_distribution?: boolean;
   leaf_display_name?: string;
   treatment_plan?: {
     chemical_management?: string[];

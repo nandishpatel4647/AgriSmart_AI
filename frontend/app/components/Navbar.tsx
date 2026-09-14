@@ -13,6 +13,7 @@ const primaryLinks = [
 ];
 
 const secondaryLinks = [
+  { to: "/recommendation", label: "Crop Recommendation", icon: Sprout },
   { to: "/map", label: "Satellite Map", icon: MapPin },
   { to: "/rotation", label: "Crop Rotation", icon: RefreshCw },
   { to: "/telemetry", label: "IoT Sensors", icon: Radio },
