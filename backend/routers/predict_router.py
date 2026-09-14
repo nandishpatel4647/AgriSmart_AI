@@ -100,14 +100,16 @@ def _assess_image_quality(image: Image.Image) -> dict:
 
 def _generate_gradcam(image_path: str) -> str:
     """
-    Generate Grad-CAM heatmap overlay.
+    Generate High-Resolution Grad-CAM / HiResCAM heatmap overlay.
+    Hooks into features[6] (penultimate high-semantic conv stage) to preserve
+    accurate spatial lesion coordinates, and computes element-wise gradient-activation
+    attribution with smooth Gaussian contours for pinpoint disease localization.
     Returns base64-encoded image or None if unavailable.
     """
     try:
         import torch
         import numpy as np
-        from torchvision import transforms, models
-        import torch.nn as nn
+        from PIL import Image as PILImage
         from predict import _load_model
         
         model, checkpoint, device, transform = _load_model()
@@ -116,10 +118,10 @@ def _generate_gradcam(image_path: str) -> str:
         img = Image.open(image_path).convert("RGB")
         img_tensor = transform(img).unsqueeze(0).to(device)
         
-        # Get the last conv layer of EfficientNet
-        target_layer = model.features[-1]
+        # Target layer: features[6] is the 192-channel inverted residual stage (7x7)
+        # providing localized spatial disease lesion attribution.
+        target_layer = model.features[6]
         
-        # Hook to capture activations and gradients
         activations = []
         gradients = []
         
@@ -145,25 +147,25 @@ def _generate_gradcam(image_path: str) -> str:
         fh.remove()
         bh.remove()
         
-        # Compute Grad-CAM
+        # HiResCAM: Element-wise gradient * activation attribution
+        # Retains exact spatial gradients of lesions without global averaging cancellation
         act = activations[0].squeeze()  # [C, H, W]
         grad = gradients[0].squeeze()   # [C, H, W]
         
-        weights = grad.mean(dim=(1, 2))  # Global average pooling of gradients
-        cam = torch.zeros(act.shape[1:], device=device)
-        for i, w in enumerate(weights):
-            cam += w * act[i]
+        cam = torch.relu((act * grad).sum(dim=0)).cpu().numpy()
+        cam = (cam - cam.min()) / (cam.max() - cam.min() + 1e-8)
         
-        cam = torch.relu(cam)
-        cam = cam - cam.min()
-        if cam.max() > 0:
-            cam = cam / cam.max()
+        # Contrast curve & Gaussian smoothing for organic, continuous lesion contours
+        try:
+            import scipy.ndimage as ndimage
+            cam_contrast = cam ** 1.3
+            cam_smooth = ndimage.gaussian_filter(cam_contrast, sigma=0.75)
+            cam = (cam_smooth - cam_smooth.min()) / (cam_smooth.max() - cam_smooth.min() + 1e-8)
+        except Exception:
+            pass
         
-        cam = cam.cpu().numpy()
-        
-        # Resize cam to image size
-        from PIL import Image as PILImage
-        cam_resized = np.array(PILImage.fromarray((cam * 255).astype(np.uint8)).resize(img.size, PILImage.BILINEAR)) / 255.0
+        # Resize cam to original image dimensions with Bicubic interpolation
+        cam_resized = np.array(PILImage.fromarray((cam * 255).astype(np.uint8)).resize(img.size, PILImage.BICUBIC)) / 255.0
         
         # Create heatmap overlay
         import matplotlib

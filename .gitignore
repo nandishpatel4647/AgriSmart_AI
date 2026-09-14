@@ -43,3 +43,4 @@ kaggle_cache/
 # Temp
 *.tmp
 *.log
+scratch/
