@@ -257,6 +257,16 @@ async def predict_disease(
         from predict import predict
         result = predict(str(filepath))
         
+        # Construct standardized photo_quality for frontend compatibility
+        photo_quality = {
+            "status": quality.get("overall", "good"),
+            "sharpness_score": min(100.0, max(0.0, float(quality.get("sharpness", 85.0)))),
+            "brightness_score": min(100.0, max(0.0, float(quality.get("brightness", 85.0)))),
+            "leaf_likelihood": "leaf_candidate" if result.get("is_supported_crop", True) else "not_leaf_like",
+            "issues": quality.get("issues", []),
+            "recommendation": "Clear leaf photo"
+        }
+
         # Check if the model flagged the input as Out-Of-Distribution / Unsupported
         if not result.get("is_supported_crop", True):
             is_non_plant = result.get("error_type") == "NON_PLANT_IMAGE"
@@ -264,11 +274,14 @@ async def predict_disease(
                 "success": True,
                 "is_supported_crop": False,
                 "out_of_distribution": True,
+                "is_ood": True,
+                "ood_status": result.get("error_type", "UNSEEN_SPECIES_DETECTED"),
                 "id": scan_id,
                 "status": "ready",
                 "model_status": "ready",
                 "filename": upload.filename or filename,
                 "disease_label": "Non-Plant Object (Not a Leaf)" if is_non_plant else "Unsupported Crop",
+                "leaf_display_name": "⚠️ Non-Plant Object Detected" if is_non_plant else "⚠️ Unsupported Crop Detected",
                 "confidence": 0.0,
                 "crop": "Unsupported Crop" if not is_non_plant else "Non-Plant Object",
                 "created_at": datetime.utcnow().isoformat(),
@@ -283,6 +296,7 @@ async def predict_disease(
                 "supported_crops": result.get("supported_crops", SUPPORTED_CROPS),
                 "image_path": f"/uploads/{filename}",
                 "quality": quality,
+                "photo_quality": photo_quality,
             }
         
         # Supported crop: Generate Grad-CAM explainability overlay
@@ -293,19 +307,23 @@ async def predict_disease(
             for c, p in result.get("top_k", [])
         ]
         
+        disease_title = f"{result['crop']} — {result['disease']}" if not result['is_healthy'] else f"{result['crop']} — Healthy Leaf"
+        
         return {
             "success": True,
             "is_supported_crop": True,
             "out_of_distribution": False,
+            "is_ood": False,
+            "ood_status": "IN_DISTRIBUTION",
             "id": scan_id,
             "status": "ready",
             "model_status": "ready",
             "filename": upload.filename or filename,
-            "disease_label": result["disease"],
+            "disease_label": disease_title,
             "confidence": result["confidence"],
             "crop": result["crop"],
             "created_at": datetime.utcnow().isoformat(),
-            "analysis_note": "Prediction returned by trained ConvNeXt with calibrated OOD rejection.",
+            "analysis_note": f"Diagnosed as {result['crop']} ({result['disease']}) with {round(result['confidence']*100, 1)}% model confidence." if not result['is_healthy'] else f"Diagnosed as a healthy {result['crop']} leaf with no detected disease.",
             "precautionary_guidance": result.get("guidance", []),
             "prediction": {
                 "class_label": result["class_label"],
@@ -333,6 +351,7 @@ async def predict_disease(
             "gradcam_url": f"data:image/png;base64,{gradcam_base64}" if gradcam_base64 else None,
             "gradcam_data_uri": f"data:image/png;base64,{gradcam_base64}" if gradcam_base64 else None,
             "quality": quality,
+            "photo_quality": photo_quality,
             "image_quality": quality,
             "image_path": f"/uploads/{filename}",
             "supported_crops": SUPPORTED_CROPS,

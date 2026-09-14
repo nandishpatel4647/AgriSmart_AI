@@ -356,9 +356,16 @@ function ResultCard({
   heatmapView: "side_by_side" | "heatmap_only" | "original_only";
   setHeatmapView: (v: "side_by_side" | "heatmap_only" | "original_only") => void;
 }) {
-  const isOod = result.is_ood || result.ood_status === "UNSEEN_SPECIES_DETECTED" || result.ood_status === "NON_PLANT_IMAGE";
-  const isNonPlant = result.ood_status === "NON_PLANT_IMAGE";
-  const quality = result.photo_quality;
+  const isOod = Boolean(result.is_ood || (result as any).out_of_distribution || result.ood_status === "UNSEEN_SPECIES_DETECTED" || result.ood_status === "NON_PLANT_IMAGE" || (result as any).error_type === "UNSEEN_SPECIES_DETECTED" || (result as any).error_type === "NON_PLANT_IMAGE" || !result.is_supported_crop);
+  const isNonPlant = result.ood_status === "NON_PLANT_IMAGE" || (result as any).error_type === "NON_PLANT_IMAGE";
+  const quality = result.photo_quality || {
+    status: "good",
+    sharpness_score: Number((result as any)?.quality?.sharpness) || 85,
+    brightness_score: Number((result as any)?.quality?.brightness) || 85,
+    leaf_likelihood: isNonPlant ? "not_leaf_like" : "leaf_candidate",
+    issues: [],
+    recommendation: "Clear leaf photo"
+  };
 
   // Extract gradcam source reliably from base64 data URI or url
   const gradcamSrc = (result as any)?.gradcam_url || (result as any)?.gradcam_data_uri || (
