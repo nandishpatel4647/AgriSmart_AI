@@ -12,7 +12,9 @@ import {
   LayoutDashboard,
   Microscope,
   CloudSun,
-  Bot
+  Bot,
+  Map,
+  Sprout
 } from "lucide-react";
 
 export default function Navbar() {
@@ -21,6 +23,8 @@ export default function Navbar() {
   const navItems = [
     { label: "Dashboard", href: "/", icon: LayoutDashboard },
     { label: "Detect Disease", href: "/detect", icon: Microscope },
+    { label: "Map & Monitor", href: "/map", icon: Map },
+    { label: "Crop Rotation", href: "/rotation", icon: Sprout },
     { label: "Weather", href: "/weather", icon: CloudSun },
     { label: "Assistant", href: "/assistant", icon: Bot },
   ];

@@ -7,7 +7,7 @@
 
 const DIRECT_BACKEND = "http://127.0.0.1:8000";
 
-async function resilientFetch(endpoint: string, options?: RequestInit): Promise<Response> {
+export async function resilientFetch(endpoint: string, options?: RequestInit): Promise<Response> {
   const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
   
   // Attempt 1: Same-origin Next.js proxy (/api/...)
