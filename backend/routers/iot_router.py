@@ -72,6 +72,7 @@ def _simulate_sensor_reading() -> dict:
     }
 
 
+@router.get("/iot")
 @router.get("/iot/sensors")
 async def get_sensor_data():
     """
@@ -86,6 +87,12 @@ async def get_sensor_data():
         "success": True,
         "⚠️ NOTICE": "SIMULATED IoT DATA — Not from real sensors",
         "data_type": "simulated",
+        "soil_moisture": round(reading["soil_moisture_pct"]),
+        "temperature": reading["temperature_c"],
+        "humidity": reading["humidity_pct"],
+        "nitrogen": 45,
+        "phosphorus": 32,
+        "potassium": 28,
         "reading": reading,
         "timestamp": datetime.now().isoformat(),
         "sensor_labels": {

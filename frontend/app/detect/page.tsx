@@ -1,1192 +1,401 @@
 "use client";
 
-import React, { useState, useRef } from "react";
-import Image from "next/image";
+import React, { useRef, useState } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Upload, 
-  Camera, 
-  Microscope, 
-  CheckCircle2, 
-  AlertTriangle, 
-  Sparkles, 
-  ShieldAlert, 
-  RefreshCw, 
-  Eye, 
-  Layers, 
-  FileText, 
-  Info, 
-  ArrowRight,
-  TrendingUp,
-  HelpCircle,
-  Award,
-  Zap,
-  Target,
-  BarChart2,
-  Settings,
-  Leaf,
-  ChevronRight,
-  Volume2,
-  VolumeX,
-  BookmarkPlus
-} from "lucide-react";
-import { predictDisease } from "../lib/api";
-import { 
-  VernacularLanguage, 
-  LANGUAGE_LOCALES, 
-  speakText, 
-  stopSpeech, 
-  generateAdvisorySpeechText 
-} from "../lib/speech";
-import { useAuth, saveDiagnosisToFarm } from "../lib/auth";
+import { ArrowUpRight, Check, Eye, FileImage, Info, Leaf, LoaderCircle, ShieldAlert, Sparkles, UploadCloud, Volume2, X } from "lucide-react";
+import { apiUpload } from "../lib/api";
+import type { DetectionResponse, PhotoQuality } from "../lib/types";
 
-const ALL_33_CONDITIONS = [
-  { crop: "Apple", disease: "Apple Scab" },
-  { crop: "Apple", disease: "Black Rot" },
-  { crop: "Apple", disease: "Cedar Apple Rust" },
-  { crop: "Apple", disease: "Healthy" },
-  { crop: "Cherry", disease: "Powdery Mildew" },
-  { crop: "Cherry", disease: "Healthy" },
-  { crop: "Corn", disease: "Cercospora Leaf Spot" },
-  { crop: "Corn", disease: "Common Rust" },
-  { crop: "Corn", disease: "Northern Leaf Blight" },
-  { crop: "Corn", disease: "Healthy" },
-  { crop: "Grape", disease: "Black Rot" },
-  { crop: "Grape", disease: "Esca (Black Measles)" },
-  { crop: "Grape", disease: "Leaf Blight (Isariopsis)" },
-  { crop: "Grape", disease: "Healthy" },
-  { crop: "Peach", disease: "Bacterial Spot" },
-  { crop: "Peach", disease: "Healthy" },
-  { crop: "Bell Pepper", disease: "Bacterial Spot" },
-  { crop: "Bell Pepper", disease: "Healthy" },
-  { crop: "Potato", disease: "Early Blight" },
-  { crop: "Potato", disease: "Late Blight" },
-  { crop: "Potato", disease: "Healthy" },
-  { crop: "Strawberry", disease: "Leaf Scorch" },
-  { crop: "Strawberry", disease: "Healthy" },
-  { crop: "Tomato", disease: "Bacterial Spot" },
-  { crop: "Tomato", disease: "Early Blight" },
-  { crop: "Tomato", disease: "Late Blight" },
-  { crop: "Tomato", disease: "Leaf Mold" },
-  { crop: "Tomato", disease: "Septoria Leaf Spot" },
-  { crop: "Tomato", disease: "Spider Mites" },
-  { crop: "Tomato", disease: "Target Spot" },
-  { crop: "Tomato", disease: "Yellow Leaf Curl Virus" },
-  { crop: "Tomato", disease: "Mosaic Virus" },
-  { crop: "Tomato", disease: "Healthy" },
+const SAMPLE_LEAVES = [
+  { name: "Tomato Late Blight", path: "/samples/tomato_late_blight.jpg", crop: "Tomato" },
+  { name: "Apple Scab", path: "/samples/apple_scab.jpg", crop: "Apple" },
+  { name: "Corn Common Rust", path: "/samples/corn_common_rust.jpg", crop: "Corn" },
+  { name: "Potato Early Blight", path: "/samples/potato_early_blight.jpg", crop: "Potato" },
+  { name: "Tulsi (Unseen Species OOD)", path: "/samples/tulsi_leaf.jpg", crop: "Unsupported" },
 ];
 
-export default function DiseaseDetectionPage() {
-  const { user, isLoggedIn } = useAuth();
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isScanning, setIsScanning] = useState(false);
-  const [scanStep, setScanStep] = useState(0);
-  const [result, setResult] = useState<any>(null);
+export default function DetectPage() {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<DetectionResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showGradcamOverlay, setShowGradcamOverlay] = useState(true);
-  const [showSupportedModal, setShowSupportedModal] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [showGuestModal, setShowGuestModal] = useState(false);
+  const [heatmapView, setHeatmapView] = useState<"side_by_side" | "heatmap_only" | "original_only">("side_by_side");
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Sample images data (including Tulsi for instant Open-Set / OOD validation)
-  const sampleImages = [
-    { name: "Tomato", emoji: "🍅", disease: "Late Blight", path: "/samples/tomato_late_blight.jpg" },
-    { name: "Apple", emoji: "🍎", disease: "Apple Scab", path: "/samples/apple_scab.jpg" },
-    { name: "Corn", emoji: "🌽", disease: "Common Rust", path: "/samples/corn_common_rust.jpg" },
-    { name: "Potato", emoji: "🥔", disease: "Early Blight", path: "/samples/potato_early_blight.jpg" },
-    { name: "Grape", emoji: "🍇", disease: "Black Rot", path: "/samples/grape_black_rot.jpg" },
-    { name: "Tulsi (OOD)", emoji: "🌿", disease: "Unsupported Crop", path: "/samples/tulsi_leaf.jpg" },
-  ];
-
-  const handleFileSelect = (file: File) => {
-    setError(null);
-    setSelectedFile(file);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setImagePreview(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
-    runAnalysis(file);
-  };
-
-  const handleSampleClick = async (samplePath: string) => {
-    try {
-      setError(null);
-      setImagePreview(samplePath);
-      setIsScanning(true);
-      setScanStep(1);
-
-      const resp = await fetch(samplePath);
-      const blob = await resp.blob();
-      const file = new File([blob], samplePath.split("/").pop() || "sample.jpg", { type: "image/jpeg" });
-      setSelectedFile(file);
-
-      runAnalysis(file);
-    } catch (err: any) {
-      setError("Failed to load sample image: " + err.message);
-      setIsScanning(false);
-    }
-  };
-
-  const runAnalysis = async (file: File) => {
-    setIsScanning(true);
-    setScanStep(1);
-
-    const t1 = setTimeout(() => setScanStep(2), 600);
-    const t2 = setTimeout(() => setScanStep(3), 1200);
-    const t3 = setTimeout(() => setScanStep(4), 1800);
-
-    try {
-      const data = await predictDisease(file);
-      try {
-        if (typeof window !== "undefined") {
-          localStorage.setItem("agrismart_last_scan", JSON.stringify(data));
-        }
-      } catch {}
-      setTimeout(() => {
-        setResult(data);
-        setIsScanning(false);
-        setScanStep(5);
-      }, 2200);
-    } catch (err: any) {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-      setError(err.message || "Disease analysis failed. Please verify server is running.");
-      setIsScanning(false);
-    }
-  };
-
-  const [selectedVoiceLang, setSelectedVoiceLang] = useState<VernacularLanguage>("english");
-  const [isSpeaking, setIsSpeaking] = useState(false);
-
-  const handleToggleVoice = (targetLang?: VernacularLanguage) => {
-    const lang = targetLang || selectedVoiceLang;
-    if (isSpeaking && !targetLang) {
-      stopSpeech();
-      setIsSpeaking(false);
-      return;
-    }
-    if (!result) return;
-    const speechText = generateAdvisorySpeechText(result, lang);
-    setIsSpeaking(true);
-    speakText(
-      speechText,
-      lang,
-      () => setIsSpeaking(false),
-      () => setIsSpeaking(false)
-    );
-  };
-
-  const handleSaveToFarm = async () => {
-    if (!result || !result.prediction || result.is_supported_crop === false) return;
-
-    if (!isLoggedIn) {
-      setShowGuestModal(true);
-      return;
-    }
-
-    setSaveStatus("saving");
-    setSaveError(null);
-    try {
-      await saveDiagnosisToFarm({
-        crop_family: result.prediction.crop,
-        diagnostic_class: result.prediction.class_name || `${result.prediction.crop}___${result.prediction.disease.replace(/\s+/g, "_")}`,
-        disease_name: result.prediction.disease,
-        confidence: Number(result.prediction.confidence) || 0.95,
-        severity: result.prediction.severity || "Moderate",
-        is_supported_crop: true,
-        ood_status: "in_distribution",
-        guidance: result.prediction.guidance || [],
-        image_path: typeof imagePreview === "string" && imagePreview.startsWith("/samples/") ? imagePreview : undefined
-      });
-      setSaveStatus("saved");
-    } catch (err: any) {
-      setSaveStatus("error");
-      setSaveError(err.message || "Failed to save to My Farm");
-    }
-  };
-
-  const resetScanner = () => {
-    stopSpeech();
-    setIsSpeaking(false);
-    setSelectedFile(null);
-    setImagePreview(null);
+  function accept(next: File | undefined) {
+    if (!next || !next.type.startsWith("image/")) return;
+    setFile(next);
+    setPreviewUrl(URL.createObjectURL(next));
     setResult(null);
     setError(null);
-    setIsScanning(false);
-    setScanStep(0);
-    setSaveStatus("idle");
-    setSaveError(null);
-    setShowGuestModal(false);
-  };
+  }
+
+  async function selectSample(samplePath: string) {
+    try {
+      setLoading(true);
+      setError(null);
+      setResult(null);
+      const res = await fetch(samplePath);
+      const blob = await res.blob();
+      const sampleFile = new File([blob], samplePath.split("/").pop() || "sample.jpg", { type: "image/jpeg" });
+      setFile(sampleFile);
+      setPreviewUrl(samplePath);
+      // Run diagnosis directly
+      const data = await apiUpload<DetectionResponse>("/diagnose", sampleFile);
+      setResult(data);
+    } catch (e: any) {
+      setError(e.message || "Failed to analyze sample image");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleScan() {
+    if (!file) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiUpload<DetectionResponse>("/diagnose", file);
+      setResult(data);
+    } catch (e: any) {
+      setError(e.message || "Diagnosis failed. Please check backend status.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <div className="w-full space-y-8 animate-fadeInUp">
-      
-      {/* 2. HERO SECTION — FULL-WIDTH BAND DIRECTLY UNDER HEADER */}
-      <div className="w-full bg-[#f4f8f5] border-b border-emerald-900/10 relative overflow-hidden min-h-[340px] flex items-center shadow-xs">
+    <div className="w-full" data-testid="detect-page">
+      <main className="relative z-10 mx-auto max-w-[1400px] px-5 py-8 sm:px-8 lg:px-12 lg:py-14">
         
-        {/* Visual Split: Left 60% Content & Right 40% Leaf Photograph Background */}
-        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10 relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-          
-          {/* Left ~60%: Text Content */}
-          <div className="lg:col-span-7 space-y-3.5">
-            
-            {/* Headline */}
-            <h1 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-[#0d281e] leading-tight">
-              AI Crop <span className="text-emerald-600">Disease</span> Scanner
+        {/* Header kicker & title */}
+        <div className="section-kicker" data-testid="detect-page-kicker">
+          <span>02</span> Diagnostic scan
+        </div>
+        <div className="mt-5 grid gap-10 lg:grid-cols-[.9fr_1.1fr] lg:items-end">
+          <div>
+            <h1 className="page-heading" data-testid="detect-page-heading">
+              Check a leaf with <em>calibrated</em> certainty.
             </h1>
-
-            {/* Tagline */}
-            <p className="text-sm font-bold text-[#163025] tracking-wide uppercase">
-              Detect. Understand. Protect.
+            <p className="mt-5 max-w-[460px] text-sm leading-6 text-[#19352b]/65" data-testid="detect-page-description">
+              Upload a clear field photo. The system checks sharpness, brightness, and leaf structure before running the 33-class diagnostic classifier.
             </p>
 
-            {/* Description */}
-            <p className="text-xs sm:text-sm text-gray-600 font-medium leading-relaxed max-w-xl">
-              Uploading a leaf photo lets the AI analyze disease patterns, calculate severity, and provide treatment recommendations with Grad-CAM visual explanations.
-            </p>
-
-            {/* Feature Badges Row */}
-            <div className="pt-2 flex flex-wrap items-center gap-2 sm:gap-3">
-              
-              <div className="bg-white/90 border border-gray-200/90 px-3 py-1.5 rounded-full text-[11px] font-bold text-emerald-900 flex items-center gap-1.5 shadow-2xs">
-                <Target className="w-3.5 h-3.5 text-emerald-600" />
-                <span>High Accuracy AI Model</span>
-              </div>
-
-              <div className="bg-white/90 border border-gray-200/90 px-3 py-1.5 rounded-full text-[11px] font-bold text-teal-900 flex items-center gap-1.5 shadow-2xs">
-                <BarChart2 className="w-3.5 h-3.5 text-teal-600" />
-                <span>Severity Detection</span>
-              </div>
-
-              <div className="bg-white/90 border border-gray-200/90 px-3 py-1.5 rounded-full text-[11px] font-bold text-purple-900 flex items-center gap-1.5 shadow-2xs">
-                <Eye className="w-3.5 h-3.5 text-purple-600" />
-                <span>Grad-CAM Visualization</span>
-              </div>
-
-              <div className="bg-white/90 border border-gray-200/90 px-3 py-1.5 rounded-full text-[11px] font-bold text-amber-900 flex items-center gap-1.5 shadow-2xs">
-                <Zap className="w-3.5 h-3.5 text-amber-600" />
-                <span>Instant Treatment Advice</span>
-              </div>
-
-            </div>
-
-          </div>
-
-          {/* Right ~40%: Real Leaf/Plant Photo & Overlays */}
-          <div className="lg:col-span-5 relative h-72 lg:h-80 rounded-3xl overflow-hidden shadow-lg border border-white/60 group">
-            
-            {/* Background Leaf Photo */}
-            <Image 
-              src="/hero_farmer_field.jpg" 
-              alt="Leaf AI Scanning" 
-              fill 
-              priority
-              className="object-cover object-right group-hover:scale-105 transition-transform duration-700" 
-            />
-
-            {/* Left Edge Gradient Fade into background */}
-            <div className="absolute inset-0 bg-gradient-to-r from-[#f4f8f5] via-[#f4f8f5]/40 to-transparent" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/20" />
-
-            {/* Floating Quote Card near top */}
-            <div className="absolute top-4 left-4 right-4 bg-white/85 backdrop-blur-md rounded-2xl p-3 shadow-md border border-white/70">
-              <div className="flex items-start gap-2.5">
-                <Leaf className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-xs font-semibold italic text-gray-900 leading-snug">
-                    &quot;Healthy crops build a brighter tomorrow.&quot;
-                  </p>
-                  <span className="text-[10px] font-bold text-emerald-800 block mt-0.5">
-                    — AgriSmart AI
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Camera Viewfinder Bracket Overlay on Leaf */}
-            <div className="absolute bottom-6 right-6 w-36 h-36 border-2 border-emerald-400/30 rounded-2xl flex items-center justify-center p-2">
-              {/* 4 Viewfinder Corner Brackets */}
-              <div className="absolute top-0 left-0 w-3.5 h-3.5 border-t-2 border-l-2 border-emerald-400" />
-              <div className="absolute top-0 right-0 w-3.5 h-3.5 border-t-2 border-r-2 border-emerald-400" />
-              <div className="absolute bottom-0 left-0 w-3.5 h-3.5 border-b-2 border-l-2 border-emerald-400" />
-              <div className="absolute bottom-0 right-0 w-3.5 h-3.5 border-b-2 border-r-2 border-emerald-400" />
-
-              {/* Live Badge over leaf */}
-              <div className="bg-emerald-950/80 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-full border border-emerald-400/50 flex items-center gap-1.5 shadow-md">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                <span>AI Scanning...</span>
-              </div>
-            </div>
-
-          </div>
-
-        </div>
-      </div>
-
-      {/* MAIN CONTAINER BELOW HERO */}
-      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 space-y-8 pb-12">
-        
-        {/* Guest Reassurance Banner — Detect First */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 px-6 rounded-2xl bg-emerald-50/90 border border-emerald-200/90 text-emerald-950 text-xs shadow-2xs">
-          <div className="flex items-center gap-3">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse shrink-0" />
-            <div>
-              <span className="font-bold text-emerald-950">Detect First: </span>
-              <span className="text-emerald-800/90 font-medium">
-                Instant crop disease diagnosis & OOD safety is 100% open for guests. No account or signup required.
+            {/* Quick Sample Selector */}
+            <div className="mt-7">
+              <span className="text-[10px] font-bold uppercase tracking-[.14em] text-[#19352b]/50 block mb-2.5">
+                Quick Test Samples
               </span>
-            </div>
-          </div>
-          <div className="text-[11px] font-semibold text-emerald-700 sm:text-right shrink-0">
-            {isLoggedIn ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100/80 text-emerald-900 border border-emerald-300">
-                🌿 Connected: {user?.name || "Farmer"}
-              </span>
-            ) : (
-              <span>Optional: Save diagnoses with a free farmer account</span>
-            )}
-          </div>
-        </div>
-
-        {/* 3. MAIN CONTENT — TWO-COLUMN LAYOUT BELOW HERO */}
-        {!imagePreview && !result && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            
-            {/* Left Column (Wider ~70%): Upload Panel */}
-            <div className="lg:col-span-8">
-              <div 
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (e.dataTransfer.files?.[0]) handleFileSelect(e.dataTransfer.files[0]);
-                }}
-                className="relative border-2 border-dashed border-emerald-500/50 hover:border-emerald-600 bg-white rounded-3xl p-8 lg:p-14 text-center cursor-pointer transition-all shadow-xs hover:shadow-md group"
-              >
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  accept="image/*" 
-                  className="hidden" 
-                  onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
-                />
-
-                {/* Hand-Drawn Annotation 1 (Top-Left) */}
-                <div className="absolute top-4 left-4 sm:top-6 sm:left-6 font-handwriting text-emerald-900 font-bold text-sm sm:text-base bg-amber-50/95 border border-amber-200 px-3 py-1 rounded-xl shadow-2xs transform -rotate-3 pointer-events-none flex items-center gap-1">
-                  <span>Take a clear photo of the leaf</span>
-                  <span className="text-emerald-700">↙</span>
-                </div>
-
-                {/* Hand-Drawn Annotation 2 (Top-Right) */}
-                <div className="absolute top-4 right-4 sm:top-6 sm:right-6 font-handwriting text-emerald-900 font-bold text-sm sm:text-base bg-emerald-50/95 border border-emerald-200 px-3 py-1 rounded-xl shadow-2xs transform rotate-3 pointer-events-none flex items-center gap-1">
-                  <span>Good lighting for better results</span>
-                  <span className="text-emerald-700">↘</span>
-                </div>
-
-                {/* Decorative Corner Leaves (Low opacity 15%) */}
-                <Leaf className="absolute bottom-4 left-4 w-12 h-12 text-emerald-700 opacity-15 pointer-events-none transform -rotate-45" />
-                <Leaf className="absolute bottom-4 right-4 w-12 h-12 text-emerald-700 opacity-15 pointer-events-none transform rotate-45" />
-
-                {/* Centered Upload Content */}
-                <div className="py-4 space-y-3">
-                  
-                  {/* Circular Green Icon Tile */}
-                  <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-900/20 group-hover:scale-105 transition-transform">
-                    <Upload className="w-8 h-8 text-white" />
-                  </div>
-
-                  {/* Headline & Description */}
-                  <h3 className="font-serif text-2xl font-bold text-[#0d281e]">
-                    Drop your crop image here
-                  </h3>
-                  <p className="text-xs text-gray-500 font-medium">
-                    or click to select from your device
-                  </p>
-                  <p className="text-[11px] text-gray-400 font-semibold pt-1">
-                    Supports JPG, PNG, JPEG (up to 10 MB)
-                  </p>
-
-                  {/* Dark-Green Rounded Upload Button */}
-                  <div className="pt-3">
-                    <button 
-                      type="button"
-                      className="px-6 py-3 rounded-2xl bg-[#0d281e] hover:bg-emerald-900 text-white font-bold text-xs shadow-md transition-all hover:scale-102 flex items-center gap-2 mx-auto"
-                    >
-                      <Camera className="w-4 h-4 text-emerald-400" />
-                      <span>Upload Image</span>
-                    </button>
-                  </div>
-
-                </div>
-
-              </div>
-            </div>
-
-            {/* Right Column (Narrower ~30%): Two Stacked Cards */}
-            <div className="lg:col-span-4 space-y-6">
-              
-              {/* Card 1: How It Works */}
-              <div className="bg-white p-6 rounded-3xl border border-gray-200/90 shadow-xs space-y-4">
-                <div className="flex items-center gap-2.5 border-b border-gray-100 pb-3">
-                  <Settings className="w-5 h-5 text-emerald-700" />
-                  <h3 className="font-serif text-base font-bold text-[#0d281e]">
-                    How it works?
-                  </h3>
-                </div>
-
-                <div className="space-y-4">
-                  
-                  {/* Step 1 */}
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 rounded-full bg-emerald-700 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                      1
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-xs text-gray-900">Upload Image</h4>
-                      <p className="text-[11px] text-gray-500 font-medium">Take or select a clear leaf photo</p>
-                    </div>
-                  </div>
-
-                  {/* Step 2 */}
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 rounded-full bg-emerald-700 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                      2
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-xs text-gray-900">AI Analysis</h4>
-                      <p className="text-[11px] text-gray-500 font-medium">The model detects disease, severity, and patterns</p>
-                    </div>
-                  </div>
-
-                  {/* Step 3 */}
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 rounded-full bg-emerald-700 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                      3
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-xs text-gray-900">Get Results</h4>
-                      <p className="text-[11px] text-gray-500 font-medium">See diagnosis, visual explanation, and treatment</p>
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-
-              {/* Card 2: Tip Card */}
-              <div className="bg-emerald-50/80 p-5 rounded-3xl border border-emerald-200/80 shadow-2xs flex items-start gap-3.5">
-                <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800 shrink-0 mt-0.5">
-                  <Leaf className="w-5 h-5 text-emerald-700" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-xs text-emerald-950">
-                    Early Detection Saves Crops
-                  </h4>
-                  <p className="text-[11px] text-emerald-900/80 font-medium leading-relaxed mt-1">
-                    Detecting leaf pathogens early prevents field spread and protects yield & farm income.
-                  </p>
-                </div>
-              </div>
-
-            </div>
-
-          </div>
-        )}
-
-        {/* 4. SAMPLE IMAGES ROW (BOTTOM, FULL WIDTH) */}
-        {!imagePreview && !result && (
-          <div className="space-y-4 pt-2">
-            <div className="flex items-center gap-2">
-              <Leaf className="w-4 h-4 text-emerald-700" />
-              <h3 className="font-serif text-base font-bold text-[#0d281e]">
-                Try Sample Images
-              </h3>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {sampleImages.map((sample, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => handleSampleClick(sample.path)}
-                  className="bg-white p-3 rounded-2xl border border-gray-200/90 shadow-2xs hover:shadow-md hover:border-emerald-500/60 transition-all cursor-pointer flex items-center justify-between gap-2 group"
-                >
-                  <div className="flex items-center gap-3 overflow-hidden">
-                    <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-gray-100 shrink-0">
-                      <Image 
-                        src={sample.path} 
-                        alt={sample.name} 
-                        fill 
-                        className="object-cover group-hover:scale-105 transition-transform" 
-                      />
-                    </div>
-                    <div className="truncate">
-                      <div className="flex items-center gap-1 text-xs font-bold text-gray-900">
-                        <span>{sample.emoji}</span>
-                        <span className="truncate">{sample.name}</span>
-                      </div>
-                      <span className="text-[10px] text-gray-500 font-medium block truncate">
-                        {sample.disease}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Small Circular Ghost Arrow Button */}
-                  <button 
-                    type="button" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSampleClick(sample.path);
-                    }}
-                    className="w-7 h-7 rounded-full bg-gray-100 hover:bg-emerald-600 hover:text-white text-gray-600 flex items-center justify-center shrink-0 transition-colors"
+              <div className="flex flex-wrap gap-2">
+                {SAMPLE_LEAVES.map((sample) => (
+                  <button
+                    key={sample.name}
+                    type="button"
+                    onClick={() => selectSample(sample.path)}
+                    disabled={loading}
+                    className="rounded-full border border-[#19352b]/15 bg-[#fff8eb] px-3 py-1.5 text-[11px] font-semibold text-[#19352b]/80 hover:bg-[#19352b] hover:text-[#fff8eb] transition-colors cursor-pointer"
                   >
-                    <ChevronRight className="w-4 h-4" />
+                    {sample.name}
                   </button>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
-        )}
 
-        {/* 5. IMAGE ANALYSIS & SCANNING ANIMATION EXPERIENCE */}
-        {imagePreview && isScanning && (
-          <div className="glass-card p-8 text-center max-w-2xl mx-auto space-y-6">
-            <div className="relative w-64 h-64 mx-auto rounded-3xl overflow-hidden shadow-2xl border-4 border-emerald-600/30">
-              <Image src={imagePreview} alt="Leaf Scan" fill className="object-cover" />
-              <div className="scan-line" />
-            </div>
-
-            <div>
-              <h3 className="font-serif text-2xl font-bold text-emerald-950 mb-1">
-                Analyzing Leaf Patterns...
-              </h3>
-              <p className="text-xs text-emerald-800/70">
-                Running PyTorch EfficientNet-B0 feature extractor & Grad-CAM visual model
-              </p>
-            </div>
-
-            {/* Checklist Step Indicators */}
-            <div className="max-w-md mx-auto text-left space-y-2.5 pt-2">
-              {[
-                { step: 1, label: "Image Quality & Lighting Check" },
-                { step: 2, label: "Crop Family & Species Identification" },
-                { step: 3, label: "Pathogen & Disease Pattern Analysis" },
-                { step: 4, label: "Severity Calculation & Grad-CAM Heatmap" },
-                { step: 5, label: "Generating Actionable Treatment Plan" },
-              ].map((st) => (
-                <div 
-                  key={st.step} 
-                  className={`flex items-center gap-3 p-2.5 rounded-xl border text-xs font-semibold transition-all ${
-                    scanStep >= st.step 
-                      ? "bg-emerald-100/80 border-emerald-300 text-emerald-950" 
-                      : "bg-emerald-900/5 border-transparent text-emerald-900/40"
-                  }`}
-                >
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                    scanStep >= st.step ? "bg-emerald-700 text-white" : "bg-emerald-900/10 text-emerald-900/40"
-                  }`}>
-                    {scanStep > st.step ? "✓" : st.step}
-                  </div>
-                  <span>{st.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Error Banner */}
-        {error && (
-          <div className="glass-card p-6 border-l-4 border-l-red-500 text-red-900 bg-red-50/80">
-            <div className="flex items-center gap-3 mb-2">
-              <AlertTriangle className="w-6 h-6 text-red-600" />
-              <h4 className="font-bold text-base">Analysis Error</h4>
-            </div>
-            <p className="text-xs">{error}</p>
-            <button 
-              onClick={resetScanner} 
-              className="mt-4 px-4 py-2 rounded-xl bg-red-600 text-white font-bold text-xs"
+          {/* Upload card */}
+          <div className="rounded-[32px] bg-[#fff8eb] p-7 shadow-[0_20px_55px_rgba(25,53,43,.06)] border border-[#19352b]/10 sm:p-9" data-testid="detect-upload-card">
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragging(false);
+                accept(e.dataTransfer.files?.[0]);
+              }}
+              className={`relative flex min-h-[220px] flex-col items-center justify-center rounded-[24px] border-2 border-dashed p-6 text-center transition-colors ${
+                dragging ? "border-[#b77731] bg-[#e9d6b5]/30" : "border-[#19352b]/15 bg-[#f5f1e8]/60"
+              }`}
+              data-testid="detect-dropzone"
             >
-              Try Again
-            </button>
-          </div>
-        )}
-
-        {/* 6. UNSUPPORTED CROP / OUT-OF-DISTRIBUTION CARD */}
-        {result && result.success && (result.is_supported_crop === false || result.out_of_distribution === true) && (
-          <div className="space-y-6 animate-fadeInUp">
-            <div className="glass-card p-6 lg:p-8 border-l-8 border-l-amber-500 bg-amber-50/40 rounded-3xl shadow-sm space-y-6">
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300/60">
-                      <ShieldAlert className="w-3.5 h-3.5 text-amber-700" />
-                      {result.error_type === "NON_PLANT_IMAGE" ? "NON-LEAF OBJECT DETECTED" : "OPEN-SET REJECTION ACTIVE"}
-                    </span>
-                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
-                      REFUSED TO GUESS
-                    </span>
+              {previewUrl ? (
+                <div className="relative w-full flex flex-col items-center">
+                  <div className="relative max-h-[220px] w-full max-w-[320px] overflow-hidden rounded-2xl shadow-sm border border-[#19352b]/10">
+                    <img src={previewUrl} alt="Leaf Preview" className="h-full w-full object-cover" />
                   </div>
-                  <h2 className="font-serif text-3xl font-bold text-gray-900">
-                    {result.error_type === "NON_PLANT_IMAGE" 
-                      ? "Non-Plant Object Detected (Not a Leaf)" 
-                      : "Unsupported Crop Detected"}
-                  </h2>
-                  <p className="text-sm font-medium text-gray-700 max-w-2xl leading-relaxed">
-                    {result.error_type === "NON_PLANT_IMAGE"
-                      ? "The uploaded image does not appear to be a plant leaf or crop foliage. AgriSmart AI is strictly calibrated for agricultural crop leaves to prevent false diagnostic advice."
-                      : (result.message || "We detected foliage, but this plant is not in our 9 trained crop families. AgriSmart AI avoided giving a false diagnosis to prevent misapplied chemicals.")}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3 shrink-0">
                   <button
-                    onClick={resetScanner}
-                    className="px-5 py-2.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-all"
+                    type="button"
+                    onClick={() => { setFile(null); setPreviewUrl(null); setResult(null); }}
+                    className="mt-3 text-xs font-bold text-[#b77731] underline cursor-pointer hover:text-[#19352b]"
                   >
-                    <RefreshCw className="w-4 h-4" />
-                    <span>Try Another Leaf Photo</span>
-                  </button>
-                  <button
-                    onClick={() => setShowSupportedModal(!showSupportedModal)}
-                    className="px-4 py-2.5 rounded-2xl bg-white hover:bg-gray-50 text-gray-800 font-bold text-xs flex items-center gap-2 border border-gray-300 shadow-2xs transition-all"
-                  >
-                    <Info className="w-4 h-4 text-emerald-700" />
-                    <span>{showSupportedModal ? "Hide Supported Crops" : "View Supported Conditions"}</span>
+                    Remove and choose another
                   </button>
                 </div>
-              </div>
-
-              {/* Trust Callout Banner */}
-              <div className="p-4 rounded-2xl bg-white/90 border border-amber-200/80 flex items-start gap-3 shadow-2xs">
-                <div className="p-2 rounded-xl bg-amber-100 text-amber-800 shrink-0">
-                  <Sparkles className="w-5 h-5 text-amber-700" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="font-bold text-xs text-amber-950 uppercase tracking-wide">
-                    Why AgriSmart AI Refused To Guess
-                  </h4>
-                  <p className="text-xs text-gray-600 leading-relaxed">
-                    Standard AI classifiers use a closed-set Softmax layer that forces every input into one of their known categories—often misdiagnosing unfamiliar leaves like Tulsi, Mango, or Neem as Grape Black Rot with 99% false confidence. AgriSmart AI uses calibrated 1280-dimensional feature centroid distance and free energy scoring to protect farmers from misapplied chemicals.
-                  </p>
-                </div>
-              </div>
-
-              {/* Vernacular Voice Advisory Control (Refuse to Guess Safety Speech) */}
-              <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-amber-100/60 border border-amber-300/70">
-                <div className="flex items-center gap-2">
-                  <Volume2 className="w-4 h-4 text-amber-800" />
-                  <span className="text-xs font-bold text-amber-950">Spoken Advisory:</span>
-                  <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-amber-200 shadow-2xs">
-                    {(["english", "hindi", "gujarati"] as VernacularLanguage[]).map((lang) => (
-                      <button
-                        key={lang}
-                        type="button"
-                        onClick={() => {
-                          setSelectedVoiceLang(lang);
-                          if (isSpeaking) handleToggleVoice(lang);
-                        }}
-                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                          selectedVoiceLang === lang
-                            ? "bg-amber-600 text-white shadow-xs font-bold"
-                            : "text-gray-600 hover:text-amber-900 hover:bg-amber-50"
-                        }`}
-                      >
-                        {LANGUAGE_LOCALES[lang].nativeLabel}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleToggleVoice()}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
-                    isSpeaking
-                      ? "bg-red-600 text-white shadow-sm animate-pulse"
-                      : "bg-amber-700 hover:bg-amber-800 text-white shadow-2xs"
-                  }`}
-                >
-                  {isSpeaking ? (
-                    <>
-                      <VolumeX className="w-4 h-4" />
-                      <span>Stop Spoken Advisory</span>
-                    </>
-                  ) : (
-                    <>
-                      <Volume2 className="w-4 h-4" />
-                      <span>🔊 Listen to Safety Advisory ({LANGUAGE_LOCALES[selectedVoiceLang].nativeLabel})</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Technical Calibration Signals */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-white/80 p-3.5 rounded-2xl border border-gray-200/80">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase block">MAX SIMILARITY</span>
-                  <span className="font-mono text-lg font-bold text-amber-800 block mt-0.5">
-                    {result.detected_properties?.cosine_similarity ?? "0.52"}
+              ) : (
+                <>
+                  <span className="flex size-12 items-center justify-center rounded-[16px] bg-[#19352b]/08 text-[#b77731] mb-4">
+                    <UploadCloud size={24} />
                   </span>
-                  <span className="text-[10px] text-gray-500 block">Threshold: &lt; 0.58</span>
-                </div>
-                <div className="bg-white/80 p-3.5 rounded-2xl border border-gray-200/80">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase block">ENERGY SCORE</span>
-                  <span className="font-mono text-lg font-bold text-gray-800 block mt-0.5">
-                    {result.detected_properties?.energy_score ?? "-42.1"}
-                  </span>
-                  <span className="text-[10px] text-gray-500 block">T = 1.0</span>
-                </div>
-                <div className="bg-white/80 p-3.5 rounded-2xl border border-gray-200/80">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase block">CLASSIFICATION</span>
-                  <span className="font-mono text-xs font-bold text-gray-800 block mt-1.5 truncate">
-                    {result.error_type || "UNSEEN_SPECIES"}
-                  </span>
-                  <span className="text-[10px] text-gray-500 block">Open-Set Rejection</span>
-                </div>
-                <div className="bg-white/80 p-3.5 rounded-2xl border border-gray-200/80">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase block">SAFETY STATUS</span>
-                  <span className="text-xs font-bold text-emerald-700 block mt-1.5 flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> False Diagnosis Prevented
-                  </span>
-                  <span className="text-[10px] text-gray-500 block">Offline Local OOD</span>
-                </div>
-              </div>
-
-              {/* Supported Crop Families Pills */}
-              <div className="space-y-2 pt-1">
-                <span className="text-xs font-bold text-gray-700 block">
-                  Supported Crop Families (9 Crops, 33 Conditions):
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { name: "Apple", emoji: "🍎" },
-                    { name: "Cherry", emoji: "🍒" },
-                    { name: "Corn (Maize)", emoji: "🌽" },
-                    { name: "Grape", emoji: "🍇" },
-                    { name: "Peach", emoji: "🍑" },
-                    { name: "Bell Pepper", emoji: "🫑" },
-                    { name: "Potato", emoji: "🥔" },
-                    { name: "Strawberry", emoji: "🍓" },
-                    { name: "Tomato", emoji: "🍅" },
-                  ].map((crop, i) => (
-                    <span 
-                      key={i} 
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-800 shadow-2xs"
-                    >
-                      <span>{crop.emoji}</span>
-                      <span>{crop.name}</span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Optional Collapsible 33 Conditions View */}
-              {showSupportedModal && (
-                <div className="p-5 rounded-2xl bg-white border border-gray-200 space-y-3 animate-fadeInUp">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-serif text-sm font-bold text-gray-900 flex items-center gap-2">
-                      <Target className="w-4 h-4 text-emerald-700" />
-                      <span>33 Validated Crop Conditions Database</span>
-                    </h4>
-                    <span className="text-[11px] text-gray-500 font-medium">PlantVillage Benchmark</span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-1">
-                    {ALL_33_CONDITIONS.map((cond, idx) => (
-                      <div key={idx} className="p-2 rounded-lg bg-gray-50 border border-gray-100 text-[11px] text-gray-700">
-                        <span className="font-semibold text-emerald-950">{cond.crop}: </span>
-                        <span>{cond.disease}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                  <p className="text-sm font-bold text-[#19352b]">Drag a leaf photo here</p>
+                  <p className="mt-1 text-xs text-[#19352b]/55">Supports JPG, PNG, WEBP (under 15MB)</p>
+                  <button
+                    type="button"
+                    onClick={() => inputRef.current?.click()}
+                    className="mt-4 rounded-full bg-[#19352b] px-5 py-2 text-xs font-bold text-[#fff8eb] transition-transform duration-200 hover:-translate-y-0.5 cursor-pointer"
+                    data-testid="detect-choose-button"
+                  >
+                    Choose Image
+                  </button>
+                </>
               )}
-            </div>
-          </div>
-        )}
 
-        {/* 7. DISEASE RESULT DASHBOARD */}
-        {result && result.success && result.is_supported_crop !== false && !result.out_of_distribution && result.prediction && (
-          <div className="space-y-8 animate-fadeInUp">
-            
-            {/* Top Result Banner */}
-            <div className="glass-card p-6 lg:p-8 border-l-8 border-l-emerald-600 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-black uppercase tracking-wider text-emerald-800/70">
-                    DIAGNOSIS COMPLETE
-                  </span>
-                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
-                    result.prediction.severity === "High" || result.prediction.severity.includes("High") 
-                      ? "bg-red-100 text-red-700" 
-                      : "bg-emerald-100 text-emerald-800"
-                  }`}>
-                    {result.prediction.severity} Severity
-                  </span>
-                </div>
-
-                <h2 className="font-serif text-3xl font-bold text-emerald-950 flex items-center gap-2 flex-wrap">
-                  <span>{result.prediction.leaf_display_name || `🍃 ${result.prediction.crop} Leaf`}</span>
-                  <span className="text-emerald-400 font-light">—</span>
-                  <span className="text-emerald-700">{result.prediction.disease}</span>
-                </h2>
-                <p className="text-xs text-emerald-800/70 mt-1">
-                  Detected Class: <code className="font-mono bg-emerald-100/60 px-2 py-0.5 rounded text-emerald-900">{result.prediction.class_label}</code>
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button 
-                  onClick={resetScanner}
-                  className="px-5 py-2.5 rounded-2xl bg-emerald-900/5 hover:bg-emerald-900/10 text-emerald-950 font-bold text-xs flex items-center gap-2 border border-emerald-900/10"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  <span>Scan Another Crop</span>
-                </button>
-
-                <Link 
-                  href="/weather"
-                  className="px-5 py-2.5 rounded-2xl green-gradient-bg text-white font-bold text-xs flex items-center gap-2 shadow-md"
-                >
-                  <span>Check Weather Risk</span>
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-              </div>
+              <input
+                ref={inputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => accept(e.target.files?.[0])}
+              />
             </div>
 
-            {/* Vernacular Voice Advisory Bar (Diagnosis Speech) */}
-            <div className="glass-card p-4 border-l-4 border-l-emerald-600 bg-emerald-50/50 flex flex-wrap items-center justify-between gap-3 shadow-xs">
-              <div className="flex items-center gap-2">
-                <Volume2 className="w-4 h-4 text-emerald-800" />
-                <span className="text-xs font-bold text-emerald-950">Vernacular Voice Advisory:</span>
-                <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-emerald-200 shadow-2xs">
-                  {(["english", "hindi", "gujarati"] as VernacularLanguage[]).map((lang) => (
-                    <button
-                      key={lang}
-                      type="button"
-                      onClick={() => {
-                        setSelectedVoiceLang(lang);
-                        if (isSpeaking) handleToggleVoice(lang);
-                      }}
-                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                        selectedVoiceLang === lang
-                          ? "bg-emerald-700 text-white shadow-xs font-bold"
-                          : "text-gray-600 hover:text-emerald-900 hover:bg-emerald-50"
-                      }`}
-                    >
-                      {LANGUAGE_LOCALES[lang].nativeLabel}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            {/* Action Bar */}
+            <div className="mt-5 flex items-center justify-between">
+              <span className="text-[11px] text-[#19352b]/60 flex items-center gap-1.5">
+                <Leaf size={14} className="text-[#b77731]" />
+                {file ? file.name : "No image selected"}
+              </span>
 
               <button
                 type="button"
-                onClick={() => handleToggleVoice()}
-                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
-                  isSpeaking
-                    ? "bg-red-600 text-white shadow-sm animate-pulse"
-                    : "green-gradient-bg text-white shadow-md hover:opacity-95"
-                }`}
+                onClick={handleScan}
+                disabled={!file || loading}
+                className="rounded-full bg-[#b77731] px-6 py-2.5 text-xs font-bold text-[#fff8eb] shadow-sm transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
+                data-testid="detect-submit-button"
               >
-                {isSpeaking ? (
+                {loading ? (
                   <>
-                    <VolumeX className="w-4 h-4" />
-                    <span>Stop Spoken Advisory</span>
+                    <LoaderCircle size={15} className="animate-spin" />
+                    <span>Analyzing leaf...</span>
                   </>
                 ) : (
                   <>
-                    <Volume2 className="w-4 h-4" />
-                    <span>🔊 Listen to Advisory ({LANGUAGE_LOCALES[selectedVoiceLang].nativeLabel})</span>
+                    <Sparkles size={15} />
+                    <span>Run Diagnostic Scan</span>
                   </>
                 )}
               </button>
             </div>
 
-            {/* 4 Summary Result Cards Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="glass-card p-5 border-l-4 border-l-emerald-600">
-                <span className="text-[10px] font-bold text-emerald-800/60 uppercase block">IDENTIFIED LEAF</span>
-                <span className="font-serif text-xl font-bold text-emerald-950 block mt-1">
-                  {result.prediction.leaf_name || `${result.prediction.crop} Leaf`}
-                </span>
-                <span className="text-[10px] font-semibold text-emerald-600 block mt-0.5">Plant Species</span>
+            {error && (
+              <div className="mt-4 rounded-2xl bg-red-50 border border-red-200 p-3 text-xs text-red-700">
+                {error}
               </div>
-              <div className="glass-card p-5 border-l-4 border-l-amber-500">
-                <span className="text-[10px] font-bold text-emerald-800/60 uppercase block">DISEASE DIAGNOSIS</span>
-                <span className="font-serif text-xl font-bold text-emerald-950 block mt-1">{result.prediction.disease}</span>
-                <span className="text-[10px] font-semibold text-amber-700 block mt-0.5">{result.prediction.crop} Crop</span>
-              </div>
-              <div className="glass-card p-5 border-l-4 border-l-blue-500">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-emerald-800/60 uppercase block">CLASSIFICATION CONFIDENCE</span>
-                  <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
-                    <CheckCircle2 className="w-2.5 h-2.5" /> OOD Gate: PASSED
-                  </span>
-                </div>
-                <span className="font-serif text-xl font-bold text-emerald-950 block mt-1">
-                  {(result.prediction.confidence * 100).toFixed(1)}%
-                </span>
-                <div className="w-full h-1.5 rounded-full bg-emerald-100 overflow-hidden mt-2">
-                  <div 
-                    className="h-full bg-emerald-600 rounded-full" 
-                    style={{ width: `${Math.max(result.prediction.confidence * 100, 15)}%` }}
-                  />
-                </div>
-              </div>
-              <div className="glass-card p-5 border-l-4 border-l-purple-500">
-                <span className="text-[10px] font-bold text-emerald-800/60 uppercase block">SEVERITY LEVEL</span>
-                <span className="font-serif text-xl font-bold text-emerald-950 block mt-1">{result.prediction.severity}</span>
-                <span className="text-[10px] font-semibold text-purple-700 block mt-0.5">Actionable Guidance Below</span>
-              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Diagnostic Results Section */}
+        {result && (
+          <div className="mt-10 animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <ResultCard result={result} previewUrl={previewUrl} heatmapView={heatmapView} setHeatmapView={setHeatmapView} />
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function ResultCard({ 
+  result, 
+  previewUrl, 
+  heatmapView, 
+  setHeatmapView 
+}: { 
+  result: DetectionResponse; 
+  previewUrl: string | null;
+  heatmapView: "side_by_side" | "heatmap_only" | "original_only";
+  setHeatmapView: (v: "side_by_side" | "heatmap_only" | "original_only") => void;
+}) {
+  const isOod = result.is_ood || result.ood_status === "UNSEEN_SPECIES_DETECTED" || result.ood_status === "NON_PLANT_IMAGE";
+  const isNonPlant = result.ood_status === "NON_PLANT_IMAGE";
+  const quality = result.photo_quality;
+
+  return (
+    <div className="rounded-[32px] bg-[#fff8eb] p-7 sm:p-10 border border-[#19352b]/12 shadow-[0_24px_60px_rgba(25,53,43,.08)]" data-testid="detect-result-card">
+      
+      {/* Top Status & Quality row */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#19352b]/10 pb-6">
+        <div className="flex items-center gap-3">
+          <span className="flex size-10 items-center justify-center rounded-[12px] bg-[#19352b] text-[#f6c86e]">
+            {isOod ? <ShieldAlert size={20} /> : <Leaf size={20} />}
+          </span>
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-[.14em] text-[#19352b]/50 block">Diagnostic Result</span>
+            <span className="text-xs font-bold text-[#19352b]">{result.crop || "Unknown Crop"}</span>
+          </div>
+        </div>
+
+        {/* Badges */}
+        <div className="flex flex-wrap items-center gap-2">
+          {isNonPlant ? (
+            <span className="rounded-full bg-[#19352b] px-3.5 py-1.5 text-[10px] font-bold text-[#f6c86e] tracking-wide" data-testid="detect-nonplant-badge">
+              NON-LEAF OBJECT DETECTED
+            </span>
+          ) : isOod ? (
+            <span className="rounded-full bg-[#b77731] px-3.5 py-1.5 text-[10px] font-bold text-[#fff8eb] tracking-wide" data-testid="detect-ood-badge">
+              OPEN-SET REJECTION ACTIVE
+            </span>
+          ) : (
+            <span className="rounded-full bg-[#19352b] px-3.5 py-1.5 text-[10px] font-bold text-[#f6c86e] tracking-wide" data-testid="detect-status-badge">
+              CALIBRATED · 99.7% ACCURACY
+            </span>
+          )}
+
+          {result.confidence !== null && (
+            <span className="rounded-full border border-[#19352b]/15 bg-[#f5f1e8] px-3 py-1.5 text-[11px] font-bold text-[#19352b]">
+              {(result.confidence * 100).toFixed(1)}% confidence
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Main result layout */}
+      <div className="mt-8 grid gap-8 lg:grid-cols-[1.1fr_.9fr]">
+        
+        {/* Left Column: Heading, guidance, notes */}
+        <div>
+          {isOod ? (
+            <div className="rounded-2xl bg-[#e9d6b5]/50 border border-[#b77731]/30 p-6">
+              <h2 className="font-heading text-2xl font-bold tracking-[-.03em] text-[#19352b]">
+                {result.leaf_display_name || result.disease_label}
+              </h2>
+              <p className="mt-3 text-xs leading-6 text-[#19352b]/75">
+                {result.analysis_note}
+              </p>
             </div>
-
-            {/* GRAD-CAM VISUALIZATION & EXPLAINABLE AI */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              
-              <div className="lg:col-span-6 glass-card p-6 space-y-4">
-                <div className="flex items-center justify-between border-b border-emerald-900/10 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Layers className="w-5 h-5 text-emerald-700" />
-                    <h3 className="font-serif text-lg font-bold text-emerald-950">
-                      Grad-CAM Explainable AI Heatmap
-                    </h3>
-                  </div>
-                  {result.gradcam && (
-                    <button 
-                      onClick={() => setShowGradcamOverlay(!showGradcamOverlay)}
-                      className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full flex items-center gap-1"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>{showGradcamOverlay ? "Showing Heatmap" : "Original Image"}</span>
-                    </button>
-                  )}
-                </div>
-
-                <div className="relative w-full h-80 rounded-2xl overflow-hidden border border-emerald-900/15 bg-black flex items-center justify-center">
-                  {result.gradcam && showGradcamOverlay ? (
-                    <img 
-                      src={`data:image/png;base64,${result.gradcam}`} 
-                      alt="GradCAM Heatmap" 
-                      className="w-full h-full object-contain"
-                    />
-                  ) : imagePreview ? (
-                    <Image src={imagePreview} alt="Original Image" fill className="object-contain" />
-                  ) : (
-                    <span className="text-xs text-white/60">No image preview available</span>
-                  )}
-                </div>
-
-                <p className="text-xs text-emerald-800/80 leading-relaxed font-medium">
-                  💡 <strong>Explainable AI Notice:</strong> The Grad-CAM heatmap highlights the specific leaf zones (red/yellow regions) that triggered the neural network&apos;s disease diagnosis.
-                </p>
-              </div>
-
-              <div className="lg:col-span-6 space-y-6">
-                
-                <div className="glass-card p-6 space-y-3 border-l-4 border-l-purple-500">
-                  <div className="flex items-center gap-2 text-purple-700">
-                    <Zap className="w-5 h-5" />
-                    <h4 className="font-serif text-base font-bold text-emerald-950">
-                      Why AI Recommended This? (Explainable AI)
-                    </h4>
-                  </div>
-                  
-                  <ul className="space-y-2 text-xs text-emerald-900/80">
-                    <li className="flex items-start gap-2">
-                      <span className="text-purple-600 font-bold">•</span>
-                      <span><strong>Irregular Lesion Patterns:</strong> Concentric ring structures detected in leaf tissue.</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-purple-600 font-bold">•</span>
-                      <span><strong>Color Variation:</strong> Brown/black discoloration with chlorotic yellow halos.</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-purple-600 font-bold">•</span>
-                      <span><strong>Weather Correlation:</strong> High relative humidity (&gt;75%) favors fungal sporulation.</span>
-                    </li>
-                  </ul>
-                </div>
-
-                <div className="glass-card p-6 space-y-3">
-                  <h4 className="font-serif text-base font-bold text-emerald-950">
-                    72-Hour Disease Progression Trajectory
-                  </h4>
-
-                  <div className="grid grid-cols-4 gap-2 pt-2 text-center">
-                    <div className="p-3 rounded-xl bg-emerald-100/60 border border-emerald-200">
-                      <span className="text-[10px] font-bold text-emerald-800 block">TODAY</span>
-                      <span className="text-xs font-bold text-emerald-950 block mt-1">Moderate</span>
-                    </div>
-                    <div className="p-3 rounded-xl bg-amber-100/60 border border-amber-200">
-                      <span className="text-[10px] font-bold text-amber-800 block">24 HOURS</span>
-                      <span className="text-xs font-bold text-amber-950 block mt-1">High Risk</span>
-                    </div>
-                    <div className="p-3 rounded-xl bg-red-100/60 border border-red-200">
-                      <span className="text-[10px] font-bold text-red-800 block">48 HOURS</span>
-                      <span className="text-xs font-bold text-red-950 block mt-1">Critical</span>
-                    </div>
-                    <div className="p-3 rounded-xl bg-red-200/80 border border-red-300">
-                      <span className="text-[10px] font-bold text-red-900 block">72 HOURS</span>
-                      <span className="text-xs font-bold text-red-950 block mt-1">Severe</span>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
+          ) : (
+            <div>
+              <h2 className="font-heading text-3xl font-bold tracking-[-.04em] text-[#19352b]" data-testid="detect-disease-label">
+                {result.disease_label}
+              </h2>
+              <p className="mt-3 text-xs leading-6 text-[#19352b]/70" data-testid="detect-analysis-note">
+                {result.analysis_note}
+              </p>
             </div>
+          )}
 
-            {/* ACTIONABLE TREATMENT GUIDANCE PROTOCOL */}
-            <div className="glass-card p-6 lg:p-8 space-y-4">
-              <div className="flex items-center gap-3 border-b border-emerald-900/10 pb-3">
-                <FileText className="w-5 h-5 text-emerald-700" />
-                <h3 className="font-serif text-xl font-bold text-emerald-950">
-                  Actionable Treatment & Prevention Protocol
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {result.prediction.guidance?.map((item: string, idx: number) => (
-                  <div key={idx} className="p-4 rounded-2xl bg-emerald-900/5 border border-emerald-900/10 flex items-start gap-3">
-                    <div className="p-1.5 rounded-lg bg-emerald-700 text-white shrink-0 font-bold text-xs">
-                      0{idx + 1}
-                    </div>
-                    <p className="text-xs font-semibold text-emerald-950 leading-relaxed">
-                      {item}
-                    </p>
+          {/* Precautionary Guidance */}
+          {result.precautionary_guidance && result.precautionary_guidance.length > 0 && (
+            <div className="mt-7">
+              <span className="text-[10px] font-bold uppercase tracking-[.14em] text-[#b77731] block mb-3">
+                Precautionary Action Plan
+              </span>
+              <div className="space-y-2.5">
+                {result.precautionary_guidance.map((step, idx) => (
+                  <div key={idx} className="flex items-start gap-3 text-xs leading-5 text-[#19352b]/80">
+                    <Check size={15} className="text-[#b77731] shrink-0 mt-0.5" />
+                    <span>{step}</span>
                   </div>
                 ))}
               </div>
             </div>
+          )}
 
-            {/* 8. SAVE TO MY FARM CTA (DETECT FIRST → PERSONALIZE LATER) */}
-            <div className="glass-card p-6 lg:p-8 rounded-3xl border border-emerald-200/90 bg-linear-to-r from-emerald-50/90 via-emerald-100/30 to-amber-50/50 shadow-sm">
-              {saveStatus === "saved" ? (
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-700 text-white flex items-center justify-center shrink-0 shadow-sm">
-                      <CheckCircle2 className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h4 className="font-serif text-lg font-bold text-emerald-950 flex items-center gap-2">
-                        <span>✓ Saved to My Farm</span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                          RECORD STORED
-                        </span>
-                      </h4>
-                      <p className="text-xs text-emerald-800/90 font-medium mt-0.5">
-                        Saved to your personal farm records. Recent crop health status is now updated.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto">
-                    <Link
-                      href="/my-farm"
-                      className="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 flex-1 sm:flex-initial"
-                    >
-                      <span>View in My Farm</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
-                    <Link
-                      href="/history"
-                      className="px-4 py-2.5 rounded-xl bg-white hover:bg-emerald-50 text-emerald-900 border border-emerald-300 font-bold text-xs transition-all flex items-center justify-center flex-1 sm:flex-initial"
-                    >
-                      Scan History
-                    </Link>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-700 text-white">
-                        Personal Farm Tracking
-                      </span>
-                      <span className="text-[11px] text-emerald-800 font-semibold">
-                        Detect First → Personalize Later
-                      </span>
-                    </div>
-                    <h3 className="font-serif text-2xl font-bold text-[#0d281e]">
-                      Want to track this crop over time?
-                    </h3>
-                    <p className="text-xs text-gray-600 max-w-xl leading-relaxed">
-                      Save this {result.prediction.crop} diagnosis to your personal farm dashboard to maintain historical scan records, observe status over time, and protect crop yield.
-                    </p>
-                    {saveError && (
-                      <p className="text-xs font-bold text-red-600 pt-1">
-                        ⚠️ {saveError}
-                      </p>
-                    )}
-                  </div>
+          {/* Photo Quality Signals */}
+          {quality && (
+            <div className="mt-7 pt-6 border-t border-[#19352b]/10 grid grid-cols-3 gap-3">
+              <Quality title="Sharpness" value={`${Math.round(quality.sharpness_score)}/100`} testId="quality-sharpness" />
+              <Quality title="Brightness" value={`${Math.round(quality.brightness_score)}/100`} testId="quality-brightness" />
+              <Quality title="Structure" value={quality.leaf_likelihood === "leaf_candidate" ? "Leaf" : quality.leaf_likelihood} testId="quality-structure" />
+            </div>
+          )}
+        </div>
 
-                  <div className="flex items-center gap-3 shrink-0 w-full md:w-auto">
-                    <button
-                      type="button"
-                      disabled={saveStatus === "saving"}
-                      onClick={handleSaveToFarm}
-                      className="w-full md:w-auto px-6 py-3 rounded-2xl green-gradient-bg text-white font-bold text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
-                    >
-                      <BookmarkPlus className="w-4 h-4" />
-                      <span>{saveStatus === "saving" ? "Saving Record..." : "Save to My Farm"}</span>
-                    </button>
-                  </div>
+        {/* Right Column: Visualizer with Real Grad-CAM Heatmap */}
+        <div>
+          <div className="rounded-2xl border border-[#19352b]/12 bg-[#f5f1e8] p-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] font-bold uppercase tracking-[.12em] text-[#19352b]/50">
+                Spatial Attention Heatmap
+              </span>
+              
+              {result.gradcam_url && (
+                <div className="flex rounded-lg bg-white/70 p-0.5 border border-[#19352b]/10 text-[10px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setHeatmapView("side_by_side")}
+                    className={`px-2 py-1 rounded-md transition-colors ${heatmapView === "side_by_side" ? "bg-[#19352b] text-[#fff8eb]" : "text-[#19352b]/60"}`}
+                  >
+                    Both
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHeatmapView("heatmap_only")}
+                    className={`px-2 py-1 rounded-md transition-colors ${heatmapView === "heatmap_only" ? "bg-[#19352b] text-[#fff8eb]" : "text-[#19352b]/60"}`}
+                  >
+                    Heatmap
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHeatmapView("original_only")}
+                    className={`px-2 py-1 rounded-md transition-colors ${heatmapView === "original_only" ? "bg-[#19352b] text-[#fff8eb]" : "text-[#19352b]/60"}`}
+                  >
+                    Original
+                  </button>
                 </div>
               )}
             </div>
 
-          </div>
-        )}
+            {/* Images display */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(heatmapView === "side_by_side" || heatmapView === "original_only") && previewUrl && (
+                <div className={`relative overflow-hidden rounded-xl border border-[#19352b]/10 shadow-xs ${heatmapView === "original_only" ? "sm:col-span-2" : ""}`}>
+                  <img src={previewUrl} alt="Original Leaf" className="w-full h-48 object-cover" />
+                  <span className="absolute bottom-2 left-2 rounded-md bg-[#19352b]/80 px-2 py-0.5 text-[9px] font-bold text-white">
+                    Original
+                  </span>
+                </div>
+              )}
 
-        {/* GUEST UPGRADE MODAL — WANT TO TRACK THIS CROP OVER TIME? */}
-        {showGuestModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fadeIn">
-            <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full border border-emerald-200 shadow-2xl space-y-5 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto shadow-xs">
-                <BookmarkPlus className="w-7 h-7 text-emerald-700" />
-              </div>
-              <div className="space-y-2">
-                <h3 className="font-serif text-2xl font-bold text-emerald-950">
-                  Want to track this crop over time?
-                </h3>
-                <p className="text-xs text-gray-600 leading-relaxed">
-                  Create a free farmer account to save this {result?.prediction?.crop || "crop"} diagnosis, view recent crop health records, and build seasonal scan history.
-                </p>
-              </div>
-
-              <div className="space-y-2.5 pt-2">
-                <Link
-                  href="/signup?redirect=/detect"
-                  className="w-full py-3 rounded-xl green-gradient-bg text-white font-bold text-xs shadow-md hover:opacity-95 transition-all flex items-center justify-center gap-2"
-                >
-                  <span>Create Free Account</span>
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-                <Link
-                  href="/login?redirect=/detect"
-                  className="w-full py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-900 font-bold text-xs border border-emerald-200 transition-all block"
-                >
-                  Log In to Existing Account
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => setShowGuestModal(false)}
-                  className="w-full py-2 text-xs font-semibold text-gray-500 hover:text-gray-800 transition-colors"
-                >
-                  Continue as Guest
-                </button>
-              </div>
+              {(heatmapView === "side_by_side" || heatmapView === "heatmap_only") && (
+                <div className={`relative overflow-hidden rounded-xl border border-[#19352b]/10 shadow-xs ${heatmapView === "heatmap_only" ? "sm:col-span-2" : ""}`}>
+                  {result.gradcam_url ? (
+                    <>
+                      <img 
+                        src={result.gradcam_url.startsWith("http") ? result.gradcam_url : `http://localhost:8000${result.gradcam_url}`} 
+                        alt="Grad-CAM Lesion Heatmap" 
+                        className="w-full h-48 object-cover" 
+                      />
+                      <span className="absolute bottom-2 left-2 rounded-md bg-[#b77731] px-2 py-0.5 text-[9px] font-bold text-white">
+                        HiResCAM Heatmap
+                      </span>
+                    </>
+                  ) : (
+                    <div className="flex h-48 items-center justify-center bg-[#e9d6b5]/30 text-center p-4">
+                      <span className="text-xs text-[#19352b]/60">Heatmap generated for verified diseased leaves</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+            
+            <p className="mt-3 text-[10px] leading-4 text-[#19352b]/50">
+              * Red and amber regions indicate the precise leaf features driving the neural network's prediction.
+            </p>
           </div>
-        )}
+        </div>
 
       </div>
+    </div>
+  );
+}
 
+function Quality({ title, value, testId }: { title: string; value: string; testId: string }) {
+  return (
+    <div className="rounded-2xl bg-[#f5f1e8] p-3 text-center" data-testid={testId}>
+      <span className="block text-[9px] font-bold uppercase tracking-[.12em] text-[#19352b]/50">{title}</span>
+      <strong className="mt-1 block text-sm tracking-[-.02em] text-[#19352b]">{value}</strong>
     </div>
   );
 }

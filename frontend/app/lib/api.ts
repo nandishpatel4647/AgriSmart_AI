@@ -1,9 +1,4 @@
-/**
- * AgriSmart AI — Resilient API Client
- * Features dual-path resolution: tries same-origin Next.js proxy (/api/...) first,
- * with immediate automatic fallback to direct FastAPI backend (http://127.0.0.1:8000).
- * Eliminates 'Failed to fetch' network errors permanently.
- */
+import type { AssistantResponse, DetectionResponse, InsightInput, InsightResponse, IoTReading, WeatherResponse } from "./types";
 
 function getDirectBackend(): string {
   if (typeof window !== "undefined") {
@@ -11,6 +6,13 @@ function getDirectBackend(): string {
     return `http://${host}:8000`;
   }
   return "http://127.0.0.1:8000";
+}
+
+export class ApiError extends Error {
+  constructor(public status: number, public body: any) {
+    super(`API error: ${status}`);
+    this.name = "ApiError";
+  }
 }
 
 export async function resilientFetch(
@@ -31,11 +33,10 @@ export async function resilientFetch(
   try {
     const res = await fetch(cleanEndpoint, getOptions());
     if (res.ok) return res;
-    // If proxy returned 502/504 or 404, fall through to direct backend
     if (res.status >= 500 || res.status === 404) {
       console.warn(`Proxy returned ${res.status} for ${cleanEndpoint}, trying direct backend...`);
     } else {
-      return res; // Client errors like 400 or 422 should be returned directly
+      return res;
     }
   } catch (proxyErr) {
     console.warn(`Proxy network error for ${cleanEndpoint}, falling back to direct backend:`, proxyErr);
@@ -51,99 +52,93 @@ export async function resilientFetch(
   }
 }
 
-export async function predictDisease(file: File) {
-  const optionsFactory = () => {
-    const formData = new FormData();
-    formData.append("file", file);
-    return {
-      method: "POST",
-      body: formData,
-    };
+async function request<T>(method: string, path: string, body?: any): Promise<T> {
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  const endpoint = cleanPath.startsWith("/api") ? cleanPath : `/api${cleanPath}`;
+  
+  const headers: HeadersInit = {
+    "Accept": "application/json",
   };
-
-  const response = await resilientFetch("/api/predict", optionsFactory);
-
-  if (!response.ok) {
-    const errData = await response.json().catch(() => ({}));
-    throw new Error(errData.detail || `Prediction failed: HTTP ${response.status}`);
+  if (body) {
+    headers["Content-Type"] = "application/json";
   }
 
-  return response.json();
+  const res = await resilientFetch(endpoint, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => null);
+    throw new ApiError(res.status, errBody);
+  }
+  return res.json();
+}
+
+export const apiGet = <T>(path: string) => request<T>("GET", path);
+export const apiPost = <T>(path: string, body: any) => request<T>("POST", path, body);
+
+export async function apiUpload<T>(path: string, file: File, field = "image"): Promise<T> {
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  const endpoint = cleanPath.startsWith("/api") ? cleanPath : `/api${cleanPath}`;
+
+  const formData = new FormData();
+  formData.append(field, file);
+  // Also append 'file' for backend compatibility
+  if (field !== "file") {
+    formData.append("file", file);
+  }
+
+  const res = await resilientFetch(endpoint, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => null);
+    throw new ApiError(res.status, errBody);
+  }
+  return res.json();
+}
+
+// Backward compatibility exports for secondary pages
+export async function predictDisease(file: File) {
+  return apiUpload("/predict", file, "file");
 }
 
 export async function getWeather(lat?: number, lon?: number) {
   const params = new URLSearchParams();
   if (lat !== undefined) params.set("lat", lat.toString());
   if (lon !== undefined) params.set("lon", lon.toString());
-
   const query = params.toString() ? `?${params.toString()}` : "";
-  const response = await resilientFetch(`/api/weather${query}`);
-  if (!response.ok) throw new Error("Weather fetch failed");
-  return response.json();
+  return apiGet(`/weather${query}`);
 }
 
-export async function getIrrigation(data: {
-  soil_moisture: number;
-  crop_type: string;
-  growth_stage: string;
-  temperature: number;
-  humidity: number;
-  rain_probability: number;
-  rain_amount_forecast: number;
-}) {
-  const response = await resilientFetch("/api/irrigation", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) throw new Error("Irrigation fetch failed");
-  return response.json();
+export async function getIrrigation(data: any) {
+  return apiPost("/irrigation", data);
 }
 
-export async function getSustainability(data: Record<string, unknown>) {
-  const response = await resilientFetch("/api/sustainability", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) throw new Error("Sustainability fetch failed");
-  return response.json();
+export async function getSustainability(data: any) {
+  return apiPost("/sustainability", data);
 }
 
-export async function askAssistant(question: string, language: string, context?: Record<string, unknown>) {
-  const response = await resilientFetch("/api/assistant", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, language, context }),
-  });
-  if (!response.ok) throw new Error("Assistant fetch failed");
-  return response.json();
+export async function askAssistant(question: string, language: string, context?: any) {
+  return apiPost("/assistant", { question, language, context });
 }
 
 export async function getSensorData() {
-  const response = await resilientFetch("/api/iot/sensors");
-  if (!response.ok) throw new Error("IoT fetch failed");
-  return response.json();
+  return apiGet("/iot/sensors");
 }
 
 export async function getApiStatus() {
-  const response = await resilientFetch("/api/status");
-  if (!response.ok) throw new Error("Status fetch failed");
-  return response.json();
+  return apiGet("/status");
 }
 
-export async function getAdvisory(data: Record<string, unknown>) {
-  const response = await resilientFetch("/api/advisor", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) throw new Error("Advisory fetch failed");
-  return response.json();
+export async function getAdvisory(data: any) {
+  return apiPost("/advisor", data);
 }
 
 export async function getSensorHistory(hours: number = 6) {
-  const response = await resilientFetch(`/api/iot/history?hours=${hours}`);
-  if (!response.ok) throw new Error("Sensor history fetch failed");
-  return response.json();
+  return apiGet(`/iot/history?hours=${hours}`);
 }

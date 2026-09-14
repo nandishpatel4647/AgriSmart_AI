@@ -13,19 +13,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="h-full">
       <head>
-        <title>AgriSmart AI — Farm Intelligence Dashboard</title>
-        <meta name="description" content="Real-time crop telemetry, micro-location weather, and proactive disease prevention for Indian agriculture." />
+        <title>AgriSmart AI — Intelligent Agriculture</title>
+        <meta name="description" content="Calibrated leaf diagnosis, micro-climate weather radar, and grounded farm intelligence." />
       </head>
-      <body className="min-h-full flex flex-col font-sans antialiased text-gray-900 bg-[#F7F9F7]">
-        
+      <body className="min-h-full flex flex-col font-sans antialiased text-[#19352b] bg-[#f5f1e8]">
         {/* Universal scroll to top on every navigation */}
         <ScrollToTop />
 
-        {/* Top Navbar matching screenshot */}
+        {/* Ambient subtle leaf-vein texture from Emergent */}
+        <div className="pointer-events-none fixed inset-0 z-0 opacity-[0.04] leaf-veins" aria-hidden="true" />
+
+        {/* Emergent AppHeader Navbar */}
         <Navbar />
 
-        {/* Main Content Area with Popup Modal Page Redirect Transition */}
-        <main className="flex-1 w-full min-h-screen flex flex-col">
+        {/* Main Content Area */}
+        <main className="relative z-10 flex-1 w-full min-h-[calc(100vh-140px)] flex flex-col">
           <AnimatePresence 
             mode="wait"
             onExitComplete={() => {
@@ -36,32 +38,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           >
             <motion.div
               key={pathname}
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: -12 }}
-              transition={{
-                duration: 0.22,
-                ease: [0.16, 1, 0.3, 1], // Popup modal spring ease
-              }}
-              className="w-full flex-1"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="w-full flex-1 flex flex-col"
             >
               {children}
             </motion.div>
           </AnimatePresence>
         </main>
 
-        {/* Clean Footer matching screenshot style */}
-        <footer className="bg-white border-t border-gray-200/80 py-6 mt-12 text-center text-xs text-gray-500">
-          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="font-serif font-bold text-gray-900 text-sm">AgriSmart AI</span>
-              <span className="text-gray-400">|</span>
-              <span>Intelligent Agriculture for Indian Farmers</span>
-            </div>
-            <p className="text-gray-400">SIH 2026 Platform</p>
+        {/* Emergent Site Footer */}
+        <footer className="relative z-10 border-t border-[#19352b]/10 px-5 py-8 sm:px-8 lg:px-12 bg-[#f5f1e8]" data-testid="site-footer">
+          <div className="mx-auto flex max-w-[1400px] flex-col justify-between gap-4 text-xs text-[#19352b]/55 sm:flex-row sm:items-center">
+            <span className="font-heading text-sm font-semibold text-[#19352b]" data-testid="footer-brand">AgriSmart AI</span>
+            <span data-testid="footer-note">Intelligent agriculture for a more sustainable future.</span>
+            <span data-testid="footer-disclaimer">Production Ready · 33 Diagnostic Classes</span>
           </div>
         </footer>
-
       </body>
     </html>
   );

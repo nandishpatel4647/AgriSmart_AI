@@ -1,515 +1,280 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
-import Link from "next/link";
-import { motion } from "framer-motion";
-import { 
-  Bot, 
-  Send, 
-  Mic, 
-  MicOff, 
-  Sparkles, 
-  Globe, 
-  ArrowRight, 
-  Volume2, 
-  VolumeX, 
-  CheckCircle2, 
-  AlertTriangle,
-  Microscope,
-  CloudSun,
-  Droplets,
-  HelpCircle,
-  PhoneCall,
-  FileText
-} from "lucide-react";
-import { askAssistant, getWeather } from "../lib/api";
-import { 
-  VernacularLanguage, 
-  LANGUAGE_LOCALES, 
-  speakText as speakVernacularText, 
-  stopSpeech, 
-  createSpeechRecognizer, 
-  isSpeechRecognitionSupported 
-} from "../lib/speech";
-
-interface ActionItem {
-  label: string;
-  href?: string;
-  query?: string;
-}
-
-interface Message {
-  id: string;
-  sender: "user" | "ai";
-  text: string;
-  timestamp: string;
-  actions?: ActionItem[];
-}
+import React, { useState } from "react";
+import { Bot, Check, HelpCircle, LoaderCircle, Send, Sparkles, Volume2 } from "lucide-react";
+import { apiPost } from "../lib/api";
+import type { AssistantResponse, InsightInput, InsightResponse, Language } from "../lib/types";
 
 export default function AssistantPage() {
-  const [language, setLanguage] = useState<"en" | "hi" | "gu">("en");
-  const [inputQuery, setInputQuery] = useState("");
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      sender: "ai",
-      text: "Namaste Farmer! I am your AgriSmart AI Assistant — here to help you with crop diseases, weather spraying windows, and field care in English, Hindi, or Gujarati.\n\nHow can I help you today?",
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      actions: [
-        { label: "Scan Crop Disease", href: "/detect" },
-        { label: "Check Spray Window", href: "/weather" },
-        { label: "Explain My Last Result", query: "Explain my last crop disease scan result in detail" },
-        { label: "Talk to KVK Expert", query: "Connect me to Krishi Vigyan Kendra expert" }
-      ]
-    }
-  ]);
-  const [isThinking, setIsThinking] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [activeSpeechId, setActiveSpeechId] = useState<string | null>(null);
+  const [language, setLanguage] = useState<Language>("en");
+  const [soil, setSoil] = useState(31);
+  const [rain, setRain] = useState(18);
+  const [disease, setDisease] = useState("Tomato Early Blight (verified)");
+  const [userQuery, setUserQuery] = useState("");
+  const [insights, setInsights] = useState<InsightResponse | null>(null);
+  const [assistantData, setAssistantData] = useState<AssistantResponse | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const recognizerRef = useRef<any>(null);
-
-  // Load persistent language selection from localStorage
-  useEffect(() => {
+  async function explain() {
+    setLoading(true);
     try {
-      const savedLang = localStorage.getItem("agrismart_lang");
-      if (savedLang === "en" || savedLang === "hi" || savedLang === "gu") {
-        setLanguage(savedLang);
-      }
-    } catch {}
-  }, []);
-
-  const handleLanguageChange = (newLang: "en" | "hi" | "gu") => {
-    setLanguage(newLang);
-    try {
-      localStorage.setItem("agrismart_lang", newLang);
-    } catch {}
-  };
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isThinking]);
-
-  // Multilingual Suggestions
-  const suggestionsMap = {
-    en: [
-      "Explain my last scan result",
-      "Is today safe for pesticide spraying?",
-      "My crop leaves have dark brown spots",
-      "When should I irrigate my fields?",
-      "Talk to KVK expert helpline"
-    ],
-    hi: [
-      "मेरे आखिरी स्कैन का परिणाम समझाएं",
-      "क्या आज कीटनाशक छिड़काव के लिए सुरक्षित है?",
-      "मेरे टमाटर के पत्तों पर काले धब्बे हैं",
-      "मुझे अपने खेतों में सिंचाई कब करनी चाहिए?",
-      "केवीके विशेषज्ञ हेल्पलाइन से बात करें"
-    ],
-    gu: [
-      "મારા છેલ્લા સ્કેનનું પરિણામ સમજાવો",
-      "શું આજે છંટકાવ કરવો સલામત છે?",
-      "મારા બટાકાના પાન પીળા થઈ રહ્યા છે",
-      "સિંચાઈ ક્યારે કરવી જોઈએ?",
-      "KVK નિષ્ણાત હેલ્પલાઇન નંબર"
-    ]
-  };
-
-  const getVernacularLang = (): VernacularLanguage => {
-    if (language === "hi") return "hindi";
-    if (language === "gu") return "gujarati";
-    return "english";
-  };
-
-  // Helper to gather grounded context (last scan result + live weather)
-  const getGroundedContext = async () => {
-    const contextData: Record<string, any> = {};
-
-    // 1. Check last disease scan from localStorage
-    try {
-      const lastScanRaw = localStorage.getItem("agrismart_last_scan");
-      if (lastScanRaw) {
-        const scan = JSON.parse(lastScanRaw);
-        if (scan.detected_disease) {
-          contextData.detected_disease = scan.detected_disease;
-          contextData.crop = scan.crop || scan.crop_type;
-          contextData.confidence = scan.confidence;
-          contextData.severity = scan.severity;
-          contextData.guidance = scan.guidance;
-          contextData.is_supported_crop = scan.is_supported_crop !== false;
-        }
-      }
-    } catch (e) {
-      console.warn("Failed to load last scan from localStorage:", e);
-    }
-
-    // 2. Fetch live weather data
-    try {
-      const weatherData = await getWeather();
-      if (weatherData && weatherData.weather) {
-        contextData.weather = {
-          temperature: weatherData.weather.temperature,
-          humidity: weatherData.weather.humidity,
-          wind_speed: weatherData.weather.wind_speed,
-          rain: weatherData.weather.precipitation || 0,
-          condition: weatherData.weather.condition
-        };
-      }
-    } catch (e) {
-      console.warn("Failed to fetch live weather for context:", e);
-    }
-
-    return contextData;
-  };
-
-  const handleSend = async (queryText?: string) => {
-    const textToSend = queryText || inputQuery;
-    if (!textToSend.trim()) return;
-
-    // Stop ongoing speech before answering new question
-    stopSpeech();
-    setIsSpeaking(false);
-    setActiveSpeechId(null);
-
-    const userMsg: Message = {
-      id: Date.now().toString(),
-      sender: "user",
-      text: textToSend,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-
-    setMessages((prev) => [...prev, userMsg]);
-    if (!queryText) setInputQuery("");
-    setIsThinking(true);
-
-    try {
-      // Gather grounded context automatically
-      const groundedContext = await getGroundedContext();
-      
-      const resp = await askAssistant(textToSend, language, groundedContext);
-      const aiReply = resp.response || resp.answer || "Based on field telemetry: High humidity increases fungal risk. Inspect crop leaves within 24h.";
-
-      // Parse suggested next actions from response text
-      const parsedActions: ActionItem[] = [
-        { label: "Scan Crop Disease", href: "/detect" },
-        { label: "Check Spray Window", href: "/weather" },
-        { label: "Talk to KVK Expert", query: "Give me KVK Helpline number" }
-      ];
-
-      const aiMsgId = (Date.now() + 1).toString();
-      const aiMsg: Message = {
-        id: aiMsgId,
-        sender: "ai",
-        text: aiReply,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        actions: parsedActions
+      const payload: InsightInput = {
+        crop: "Tomato",
+        growth_stage: "Growing",
+        soil_moisture: soil,
+        rain_probability: rain,
+        temperature: 29,
+        disease_detected: disease !== "Healthy crop (verified)",
+        language,
       };
 
-      setMessages((prev) => [...prev, aiMsg]);
-      
-      // Auto Read-aloud in selected language
-      const vLang = getVernacularLang();
-      setIsSpeaking(true);
-      setActiveSpeechId(aiMsgId);
-      speakVernacularText(
-        aiReply,
-        vLang,
-        () => { setIsSpeaking(false); setActiveSpeechId(null); },
-        () => { setIsSpeaking(false); setActiveSpeechId(null); }
-      );
-    } catch (err: any) {
-      const fallbackText = language === "hi" 
-        ? "कृषि सलाह: उच्च आर्द्रता फफूंद संक्रमण को बढ़ाती है। पत्तियों की जांच करें और टपक सिंचाई का प्रयोग करें। (KVK हेल्पलाइन: 1800-180-1551)"
-        : language === "gu"
-        ? "ખેતી સલાહ: વધુ પડતો ભેજ ફૂગના રોગોને વધારે છે. પાનની સપાટી તપાસો અને ટપક પદ્ધતિ અપનાવો. (KVK હેલ્પલાઇન: 1800-180-1551)"
-        : "AI Advisory: High humidity favors fungal growth. Inspect crop leaves. For expert help call Kisan Helpline: 1800-180-1551.";
+      const inRes = await apiPost<InsightResponse>("/insights", payload);
+      setInsights(inRes);
 
-      const fallbackMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        sender: "ai",
-        text: fallbackText,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        actions: [
-          { label: "Scan Leaf Sample", href: "/detect" },
-          { label: "Check Spray Window", href: "/weather" }
-        ]
-      };
-      setMessages((prev) => [...prev, fallbackMsg]);
+      const asstRes = await apiPost<AssistantResponse>("/assistant", {
+        disease_label: disease,
+        crop: "Tomato",
+        confidence: 0.96,
+        irrigation_title: inRes.irrigation_title,
+        sustainability_score: inRes.sustainability_score,
+        rain_probability: rain,
+        language,
+        question: userQuery.trim() || undefined,
+      });
+      setAssistantData(asstRes);
+    } catch (e) {
+      console.error("Failed to fetch assistant advice", e);
     } finally {
-      setIsThinking(false);
+      setLoading(false);
     }
-  };
+  }
 
-  // Voice Input Speech Recognition
-  const toggleVoiceInput = () => {
-    if (isListening) {
-      if (recognizerRef.current) {
-        try { recognizerRef.current.abort(); } catch {}
-      }
-      setIsListening(false);
-      return;
-    }
-
-    stopSpeech();
-    setIsSpeaking(false);
-    setActiveSpeechId(null);
-
-    const vLang = getVernacularLang();
-    const recognizer = createSpeechRecognizer(
-      vLang,
-      (transcript: string) => {
-        setInputQuery(transcript);
-        setIsListening(false);
-        handleSend(transcript);
-      },
-      (errText: string) => {
-        console.warn("Speech recognition notice:", errText);
-        setIsListening(false);
-      },
-      () => {
-        setIsListening(false);
-      }
-    );
-
-    if (recognizer) {
-      recognizerRef.current = recognizer;
-      setIsListening(true);
-      try {
-        recognizer.start();
-      } catch {
-        setIsListening(false);
-      }
-    }
-  };
-
-  // Manual TTS Trigger for any specific message bubble
-  const handlePlayMessageSpeech = (msgId: string, text: string) => {
-    if (isSpeaking && activeSpeechId === msgId) {
-      stopSpeech();
-      setIsSpeaking(false);
-      setActiveSpeechId(null);
-      return;
-    }
-    stopSpeech();
-    const vLang = getVernacularLang();
-    setIsSpeaking(true);
-    setActiveSpeechId(msgId);
-    speakVernacularText(
-      text,
-      vLang,
-      () => { setIsSpeaking(false); setActiveSpeechId(null); },
-      () => { setIsSpeaking(false); setActiveSpeechId(null); }
-    );
-  };
+  // Pre-fill prompt suggestions
+  const SUGGESTED_PROMPTS = [
+    "Should I spray fungicide if rain is forecasted?",
+    "What is the best irrigation timing for Tomato early blight?",
+    "How to manage high humidity disease spread?",
+  ];
 
   return (
-    <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 animate-fadeInUp">
-      
-      {/* 1. Header & Multilingual Selector */}
-      <div className="glass-card p-6 lg:p-8 green-gradient-bg text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-emerald-200 text-xs font-bold mb-2">
-            <Bot className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Multi-Language Voice Farming Helper</span>
-          </div>
-          <h1 className="font-serif text-3xl sm:text-4xl font-bold text-white">
-            AgriSmart AI Assistant
-          </h1>
-          <p className="text-emerald-100 text-sm max-w-xl font-medium mt-1">
-            Grounded advice for crop health, disease management, and weather spraying windows in English, Hindi, or Gujarati.
-          </p>
-        </div>
-
-        {/* Global Language Toggle Persists across session */}
-        <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20">
-          {[
-            { id: "en", label: "English" },
-            { id: "hi", label: "हिंदी" },
-            { id: "gu", label: "ગુજરાતી" },
-          ].map((lang) => (
-            <button
-              key={lang.id}
-              onClick={() => handleLanguageChange(lang.id as any)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                language === lang.id
-                  ? "bg-emerald-400 text-emerald-950 shadow-md scale-102"
-                  : "text-white hover:bg-white/10"
-              }`}
-            >
-              {lang.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* 2. Conversational Chat Window */}
-      <div className="glass-card p-4 sm:p-6 h-[580px] flex flex-col justify-between border border-emerald-900/10 shadow-lg">
+    <div className="w-full" data-testid="assistant-page">
+      <main className="relative z-10 mx-auto max-w-[1280px] px-5 py-8 sm:px-8 lg:px-12 lg:py-14">
         
-        {/* Messages Stream */}
-        <div className="flex-1 overflow-y-auto space-y-4 pr-2">
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex gap-3 items-start max-w-2xl ${
-                msg.sender === "user" ? "ml-auto flex-row-reverse" : ""
-              }`}
-            >
-              {/* Avatar */}
-              <div className={`w-9 h-9 rounded-2xl flex items-center justify-center text-sm font-bold shrink-0 ${
-                msg.sender === "ai" 
-                  ? "green-gradient-bg text-white shadow-md" 
-                  : "bg-emerald-900 text-white"
-              }`}>
-                {msg.sender === "ai" ? "🤖" : "👨‍🌾"}
+        {/* Kicker & Heading */}
+        <div className="section-kicker" data-testid="assistant-page-kicker">
+          <span>04</span> AI assistant
+        </div>
+        <div className="mt-5 grid gap-10 lg:grid-cols-[.75fr_1.25fr] lg:items-end">
+          <div>
+            <h1 className="page-heading" data-testid="assistant-page-heading">
+              Make the next move <em>clear.</em>
+            </h1>
+            <p className="mt-5 max-w-[420px] text-sm leading-6 text-[#19352b]/65" data-testid="assistant-page-description">
+              This assistant is grounded in the context you provide. It will not invent a diagnosis, weather event or treatment plan.
+            </p>
+
+            {/* Language Selector */}
+            <div className="mt-8 flex items-center gap-1.5 rounded-full border border-[#19352b]/12 bg-[#fff8eb] p-1 w-fit" data-testid="assistant-language-toggle">
+              <button
+                type="button"
+                onClick={() => setLanguage("en")}
+                className={`rounded-full px-4 py-1.5 text-[11px] font-bold transition-colors cursor-pointer ${
+                  language === "en" ? "bg-[#19352b] text-white" : "text-[#19352b]/50 hover:text-[#19352b]"
+                }`}
+                data-testid="assistant-english-button"
+              >
+                English
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage("hi")}
+                className={`rounded-full px-4 py-1.5 text-[11px] font-bold transition-colors cursor-pointer ${
+                  language === "hi" ? "bg-[#19352b] text-white" : "text-[#19352b]/50 hover:text-[#19352b]"
+                }`}
+                data-testid="assistant-hindi-button"
+              >
+                हिन्दी
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage("gu")}
+                className={`rounded-full px-4 py-1.5 text-[11px] font-bold transition-colors cursor-pointer ${
+                  language === "gu" ? "bg-[#19352b] text-white" : "text-[#19352b]/50 hover:text-[#19352b]"
+                }`}
+                data-testid="assistant-gujarati-button"
+              >
+                ગુજરાતી
+              </button>
+            </div>
+          </div>
+
+          {/* Context Card */}
+          <div className="rounded-[32px] bg-[#e9d6b5] p-7 sm:p-9 border border-[#19352b]/10 shadow-[0_20px_50px_rgba(25,53,43,.06)]" data-testid="assistant-main-card">
+            <div className="flex items-start justify-between gap-4">
+              <span className="flex size-12 items-center justify-center rounded-[16px] bg-[#fff8eb] text-[#b77731] shadow-xs">
+                <Bot size={23} />
+              </span>
+              <span className="rounded-full bg-[#19352b]/10 px-3.5 py-1.5 text-[10px] font-bold text-[#19352b] tracking-wider" data-testid="assistant-grounded-badge">
+                GROUNDED RULES · NO HALLUCINATIONS
+              </span>
+            </div>
+
+            <div className="mt-7 grid gap-5 sm:grid-cols-2">
+              <Field label="Current leaf result" testId="assistant-disease-field">
+                <select 
+                  value={disease} 
+                  onChange={(e) => setDisease(e.target.value)} 
+                  className="field-control" 
+                  data-testid="assistant-disease-select"
+                >
+                  <option value="Tomato Early Blight (verified)">Tomato Early Blight (verified)</option>
+                  <option value="Tomato Late Blight (verified)">Tomato Late Blight (verified)</option>
+                  <option value="Healthy crop (verified)">Healthy crop (verified)</option>
+                  <option value="No verified disease yet">No verified disease yet</option>
+                </select>
+              </Field>
+
+              <Field label="Soil moisture" testId="assistant-soil-field">
+                <div className="flex items-center gap-3">
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="100" 
+                    value={soil} 
+                    onChange={(e) => setSoil(Number(e.target.value))} 
+                    className="range-field" 
+                    data-testid="assistant-soil-slider" 
+                  />
+                  <strong className="text-xs font-mono text-[#19352b] min-w-[32px]" data-testid="assistant-soil-value">{soil}%</strong>
+                </div>
+              </Field>
+
+              <Field label="Rain probability" testId="assistant-rain-field">
+                <div className="flex items-center gap-3">
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="100" 
+                    value={rain} 
+                    onChange={(e) => setRain(Number(e.target.value))} 
+                    className="range-field" 
+                    data-testid="assistant-rain-slider" 
+                  />
+                  <strong className="text-xs font-mono text-[#19352b] min-w-[32px]" data-testid="assistant-rain-value">{rain}%</strong>
+                </div>
+              </Field>
+
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  className="flex h-11 w-full items-center justify-center rounded-full bg-[#19352b] text-xs font-bold text-white shadow-sm transition-transform duration-200 hover:-translate-y-0.5 cursor-pointer disabled:opacity-50"
+                  onClick={explain}
+                  disabled={loading}
+                  data-testid="assistant-explain-button"
+                >
+                  {loading ? (
+                    <>
+                      <LoaderCircle className="mr-2 animate-spin" size={15} />
+                      <span>Reasoning from context…</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2" size={15} />
+                      <span>Explain my field</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Optional question field */}
+            <div className="mt-5 pt-5 border-t border-[#19352b]/10">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Ask a specific question (e.g. spray schedule, fertilizer)..."
+                  value={userQuery}
+                  onChange={(e) => setUserQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") explain(); }}
+                  className="field-control flex-1 text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={explain}
+                  disabled={loading}
+                  className="size-10 flex items-center justify-center rounded-xl bg-[#b77731] text-white hover:bg-[#a36829] transition-colors cursor-pointer shrink-0"
+                >
+                  <Send size={15} />
+                </button>
               </div>
 
-              {/* Bubble */}
-              <div className={`p-4 rounded-3xl text-xs leading-relaxed space-y-2 ${
-                msg.sender === "user"
-                  ? "bg-emerald-900 text-white font-medium rounded-tr-none"
-                  : "bg-emerald-900/5 text-emerald-950 border border-emerald-900/10 font-semibold rounded-tl-none"
-              }`}>
-                
-                {/* Header line for AI message with Read Aloud TTS button */}
-                {msg.sender === "ai" && (
-                  <div className="flex items-center justify-between gap-2 border-b border-emerald-900/10 pb-1.5 mb-1.5">
-                    <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1">
-                      <Sparkles className="w-3 h-3 text-emerald-600" /> AgriSmart AI
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handlePlayMessageSpeech(msg.id, msg.text)}
-                      className={`px-2.5 py-1 rounded-xl text-[10px] font-bold flex items-center gap-1 transition-all ${
-                        isSpeaking && activeSpeechId === msg.id
-                          ? "bg-emerald-600 text-white animate-pulse"
-                          : "bg-emerald-100 hover:bg-emerald-200 text-emerald-800"
-                      }`}
-                      title="Read Aloud in selected language"
-                    >
-                      {isSpeaking && activeSpeechId === msg.id ? (
-                        <>
-                          <VolumeX className="w-3 h-3" />
-                          <span>Stop</span>
-                        </>
-                      ) : (
-                        <>
-                          <Volume2 className="w-3 h-3" />
-                          <span>🔊 Read Aloud</span>
-                        </>
-                      )}
-                    </button>
+              {/* Quick suggestions */}
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {SUGGESTED_PROMPTS.map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    onClick={() => { setUserQuery(prompt); }}
+                    className="rounded-full bg-[#fff8eb]/80 border border-[#19352b]/10 px-3 py-1 text-[10px] text-[#19352b]/70 hover:bg-[#fff8eb] hover:text-[#19352b] transition-colors cursor-pointer"
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Assistant Response Card */}
+        {assistantData && (
+          <section className="mt-8 rounded-[32px] bg-[#19352b] p-7 text-[#fff8eb] sm:p-10 shadow-[0_24px_60px_rgba(25,53,43,.16)] animate-in fade-in slide-in-from-bottom-4 duration-300" data-testid="assistant-response-card">
+            <span className="text-[10px] font-bold uppercase tracking-[.16em] text-[#f6c86e] block mb-4">
+              Context-Grounded Field Guidance
+            </span>
+
+            <p className="max-w-[860px] font-heading text-[clamp(1.6rem,3.2vw,2.8rem)] leading-[1.08] tracking-[-.05em]" data-testid="assistant-response-answer">
+              {assistantData.answer}
+            </p>
+
+            {/* Action checklist */}
+            {assistantData.actions && assistantData.actions.length > 0 && (
+              <div className="mt-8 grid gap-3 border-t border-white/15 pt-6 sm:grid-cols-3">
+                {assistantData.actions.map((action, index) => (
+                  <div key={action} className="flex items-start gap-3 text-xs leading-5 text-white/80" data-testid={`assistant-response-action-${index}`}>
+                    <Check className="shrink-0 text-[#f6c86e] mt-0.5" size={16} />
+                    <span>{action}</span>
                   </div>
-                )}
+                ))}
+              </div>
+            )}
 
-                <p className="whitespace-pre-line text-xs">{msg.text}</p>
-
-                {/* Quick Action Chips inside AI response */}
-                {msg.actions && msg.actions.length > 0 && (
-                  <div className="pt-2 flex flex-wrap gap-2">
-                    {msg.actions.map((act, idx) => (
-                      act.href ? (
-                        <Link
-                          key={idx}
-                          href={act.href}
-                          className="px-3 py-1.5 rounded-xl bg-emerald-700 text-white text-[10px] font-bold hover:bg-emerald-800 transition-colors flex items-center gap-1"
-                        >
-                          <span>{act.label}</span>
-                          <ArrowRight className="w-3 h-3" />
-                        </Link>
-                      ) : (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => handleSend(act.query || act.label)}
-                          className="px-3 py-1.5 rounded-xl bg-emerald-700 text-white text-[10px] font-bold hover:bg-emerald-800 transition-colors flex items-center gap-1"
-                        >
-                          <span>{act.label}</span>
-                          <ArrowRight className="w-3 h-3" />
-                        </button>
-                      )
-                    ))}
-                  </div>
-                )}
-
-                <span className="text-[9px] opacity-60 block text-right pt-1 font-mono">
-                  {msg.timestamp}
+            {/* Grounded facts */}
+            {assistantData.grounded_facts && (
+              <div className="mt-8 flex flex-wrap items-center gap-2 border-t border-white/10 pt-5">
+                <span className="text-[10px] font-bold uppercase tracking-[.12em] text-white/45 mr-2">
+                  Grounded in:
                 </span>
+                {assistantData.grounded_facts.map((fact, index) => (
+                  <span key={fact} className="rounded-full bg-white/10 px-3 py-1 text-[10px] text-white/80" data-testid={`assistant-grounded-fact-${index}`}>
+                    {fact}
+                  </span>
+                ))}
               </div>
-            </div>
-          ))}
+            )}
+          </section>
+        )}
+      </main>
+    </div>
+  );
+}
 
-          {isThinking && (
-            <div className="flex gap-3 items-center text-xs font-semibold text-emerald-700">
-              <div className="w-8 h-8 rounded-xl green-gradient-bg text-white flex items-center justify-center animate-pulse">
-                🤖
-              </div>
-              <span>AgriSmart AI is analyzing grounded field telemetry & weather...</span>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* 3. Smart Suggestion Chips */}
-        <div className="py-3 border-t border-emerald-900/10 overflow-x-auto flex items-center gap-2 pr-2">
-          <span className="text-[10px] font-bold text-emerald-800/60 uppercase shrink-0">SUGGESTIONS:</span>
-          {suggestionsMap[language].map((sug, i) => (
-            <button
-              key={i}
-              onClick={() => handleSend(sug)}
-              className="px-3 py-1.5 rounded-full bg-emerald-900/5 hover:bg-emerald-900/10 text-emerald-950 text-xs font-semibold whitespace-nowrap border border-emerald-900/10 transition-colors"
-            >
-              {sug}
-            </button>
-          ))}
-        </div>
-
-        {/* 4. Input Controls Bar (Text & Voice Mic) */}
-        <div className="pt-3 flex items-center gap-2">
-          {/* Voice Microphone Trigger Button */}
-          <button
-            type="button"
-            onClick={toggleVoiceInput}
-            className={`p-3 rounded-2xl transition-all shadow-sm ${
-              isListening
-                ? "bg-red-500 text-white animate-pulse"
-                : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
-            }`}
-            title="Click to speak in your language (English, Hindi, Gujarati)"
-          >
-            {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-          </button>
-
-          <input
-            type="text"
-            value={inputQuery}
-            onChange={(e) => setInputQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            placeholder={
-              language === "hi" 
-                ? "अपनी फसल, बीमारी या मौसम के बारे में प्रश्न पूछें..." 
-                : language === "gu" 
-                ? "તમારા પાક, રોગ અથવા હવામાન વિશે પ્રશ્ન પૂછો..." 
-                : "Ask about crops, diseases, irrigation, or weather risk..."
-            }
-            className="flex-1 px-4 py-3 rounded-2xl bg-emerald-900/5 border border-emerald-900/10 text-xs font-semibold text-emerald-950 placeholder-emerald-800/40 focus:outline-none focus:ring-2 focus:ring-emerald-600/40"
-          />
-
-          <button
-            type="button"
-            onClick={() => handleSend()}
-            disabled={!inputQuery.trim()}
-            className="px-5 py-3 rounded-2xl green-gradient-bg text-white font-bold text-xs shadow-md disabled:opacity-50 flex items-center gap-1.5"
-          >
-            <span>Send</span>
-            <Send className="w-4 h-4" />
-          </button>
-        </div>
-
-      </div>
-
+function Field({ label, testId, children }: { label: string; testId: string; children: React.ReactNode }) {
+  return (
+    <div data-testid={testId}>
+      <span className="block text-[10px] font-bold uppercase tracking-[.12em] text-[#19352b]/50 mb-2">
+        {label}
+      </span>
+      {children}
     </div>
   );
 }
