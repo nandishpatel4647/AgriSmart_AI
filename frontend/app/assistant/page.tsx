@@ -21,6 +21,14 @@ import {
   HelpCircle
 } from "lucide-react";
 import { askAssistant } from "../lib/api";
+import { 
+  VernacularLanguage, 
+  LANGUAGE_LOCALES, 
+  speakText as speakVernacularText, 
+  stopSpeech, 
+  createSpeechRecognizer, 
+  isSpeechRecognitionSupported 
+} from "../lib/speech";
 
 interface Message {
   id: string;
@@ -50,6 +58,7 @@ export default function AssistantPage() {
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognizerRef = useRef<any>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -80,9 +89,19 @@ export default function AssistantPage() {
     ]
   };
 
-  const handleSend = async (queryText?: string) => {
+    const getVernacularLang = (): VernacularLanguage => {
+      if (language === "hi") return "hindi";
+      if (language === "gu") return "gujarati";
+      return "english";
+    };
+
+    const handleSend = async (queryText?: string) => {
     const textToSend = queryText || inputQuery;
     if (!textToSend.trim()) return;
+
+    // Stop ongoing speech before answering new question
+    stopSpeech();
+    setIsSpeaking(false);
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -97,7 +116,7 @@ export default function AssistantPage() {
 
     try {
       const resp = await askAssistant(textToSend, language);
-      const aiReply = resp.answer || resp.response || "Based on field telemetry: High humidity increases fungal risk. Inspect crop leaves within 24h.";
+      const aiReply = resp.response || resp.answer || "Based on field telemetry: High humidity increases fungal risk. Inspect crop leaves within 24h.";
 
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
@@ -111,12 +130,27 @@ export default function AssistantPage() {
       };
 
       setMessages((prev) => [...prev, aiMsg]);
-      speakText(aiReply);
+      
+      // Automatic read-aloud in selected vernacular language
+      const vLang = getVernacularLang();
+      setIsSpeaking(true);
+      speakVernacularText(
+        aiReply,
+        vLang,
+        () => setIsSpeaking(false),
+        () => setIsSpeaking(false)
+      );
     } catch (err: any) {
+      const fallbackText = language === "hi" 
+        ? "कृषि सलाह: उच्च आर्द्रता फफूंद संक्रमण को बढ़ाती है। पत्तियों की जांच करें और टपक सिंचाई का प्रयोग करें।"
+        : language === "gu"
+        ? "ખેતી સલાહ: વધુ પડતો ભેજ ફૂગના રોગોને વધારે છે. પાનની સપાટી તપાસો અને ટપક પદ્ધતિ અપનાવો."
+        : "AI Advisory: High relative humidity and temperature favor fungal growth. We recommend inspecting leaf surfaces and using drip irrigation.";
+
       const fallbackMsg: Message = {
         id: (Date.now() + 1).toString(),
         sender: "ai",
-        text: `AI Advisory: High relative humidity and temperature favor fungal growth. We recommend inspecting leaf surfaces for early blight spots and avoiding overhead irrigation.`,
+        text: fallbackText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         actions: [{ label: "Scan Leaf Sample", href: "/detect" }]
       };
@@ -128,48 +162,61 @@ export default function AssistantPage() {
 
   // Voice Input Speech Recognition
   const toggleVoiceInput = () => {
-    if (typeof window === "undefined") return;
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Speech recognition is not supported in this browser. Try Chrome or Edge.");
-      return;
-    }
-
     if (isListening) {
+      if (recognizerRef.current) {
+        try { recognizerRef.current.abort(); } catch {}
+      }
       setIsListening(false);
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = language === "hi" ? "hi-IN" : language === "gu" ? "gu-IN" : "en-US";
-    recognition.interimResults = false;
+    // Stop speaking before listening
+    stopSpeech();
+    setIsSpeaking(false);
 
-    recognition.onstart = () => setIsListening(true);
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setInputQuery(transcript);
-      setIsListening(false);
-      handleSend(transcript);
-    };
-    recognition.onerror = () => setIsListening(false);
-    recognition.onend = () => setIsListening(false);
+    const vLang = getVernacularLang();
+    const recognizer = createSpeechRecognizer(
+      vLang,
+      (transcript: string) => {
+        setInputQuery(transcript);
+        setIsListening(false);
+        handleSend(transcript);
+      },
+      (errText: string) => {
+        console.warn("Speech recognition notice:", errText);
+        setIsListening(false);
+      },
+      () => {
+        setIsListening(false);
+      }
+    );
 
-    recognition.start();
+    if (recognizer) {
+      recognizerRef.current = recognizer;
+      setIsListening(true);
+      try {
+        recognizer.start();
+      } catch {
+        setIsListening(false);
+      }
+    }
   };
 
-  // Text-To-Speech (TTS) Voice Synthesis
-  const speakText = (text: string) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = language === "hi" ? "hi-IN" : language === "gu" ? "gu-IN" : "en-US";
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-
-    window.speechSynthesis.speak(utterance);
+  // Manual TTS Trigger for any message bubble
+  const handlePlayMessageSpeech = (text: string) => {
+    if (isSpeaking) {
+      stopSpeech();
+      setIsSpeaking(false);
+      return;
+    }
+    const vLang = getVernacularLang();
+    setIsSpeaking(true);
+    speakVernacularText(
+      text,
+      vLang,
+      () => setIsSpeaking(false),
+      () => setIsSpeaking(false)
+    );
   };
 
   return (

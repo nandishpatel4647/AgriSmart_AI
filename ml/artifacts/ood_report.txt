@@ -1,0 +1,33 @@
+======================================================================
+AGRISMART AI — OUT-OF-DISTRIBUTION (OOD) & OPEN-SET CALIBRATION REPORT
+======================================================================
+
+1. SUMMARY OF METRICS
+---------------------
+- Calibrated Cosine Similarity Threshold : 0.5800
+- Calibrated Free Energy Threshold      : -45.0000 (T = 1.0)
+- Decision Combination Rule             : OR (Reject if Cosine < 0.58 OR Energy > -45.0)
+- In-Distribution (ID) Sample Count     : 330 (10 held-out validation samples per class)
+- Out-of-Distribution (OOD) Sample Count: 7 (Genuine unseen botanical foliage & non-plant objects)
+- ID Acceptance Rate (Combined OR)      : 96.67% (319/330)
+- ID Acceptance Rate (Cosine-only)      : 97.27% (321/330)
+- ID Acceptance Rate (Energy-only)      : 99.39% (328/330)
+- OOD Rejection Rate                    : 100.00% (7/7)
+- False OOD Rate                        : 3.33% (11/330)
+- Area Under ROC Curve (AUROC)          : 1.0000
+
+2. GENUINE UNSEEN SAMPLES EVALUATION
+------------------------------------
+  1. tulsi_leaf.jpg       | Cosine: 0.5263 (< 0.58 -> REJECTED) | Energy: -122.71 | UNSEEN_SPECIES_DETECTED
+  2. mango_leaf.jpg       | Cosine: 0.3376 (< 0.58 -> REJECTED) | Energy:  -69.89 | UNSEEN_SPECIES_DETECTED
+  3. neem_leaf.jpg        | Cosine: 0.3766 (< 0.58 -> REJECTED) | Energy: -107.33 | UNSEEN_SPECIES_DETECTED
+  4. rose_leaf.jpg        | Cosine: 0.4759 (< 0.58 -> REJECTED) | Energy: -114.42 | UNSEEN_SPECIES_DETECTED
+  5. houseplant_ficus.jpg | Cosine: 0.3630 (< 0.58 -> REJECTED) | Energy:  -56.40 | UNSEEN_SPECIES_DETECTED
+  6. wheat_leaf.jpg       | Cosine: 0.2883 (< 0.58 -> REJECTED) | Energy:  -30.09 | UNSEEN_SPECIES_DETECTED
+  7. tractor_tool.jpg     | Cosine: 0.1403 (< 0.58 -> REJECTED) | Energy:  -33.33 | NON_PLANT_IMAGE
+
+3. MANDATORY TULSI TEST
+-----------------------
+Input : data/test_samples/tulsi_leaf.jpg
+Status: REJECTED (is_supported_crop = False, error_type = UNSEEN_SPECIES_DETECTED)
+False Disease Diagnosis: NONE (Safely prevented false diagnosis)

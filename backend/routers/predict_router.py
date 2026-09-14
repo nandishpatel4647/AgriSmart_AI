@@ -1,6 +1,6 @@
 """
 AgriSmart AI — Prediction Router
-Handles image upload and disease classification via real trained model.
+Handles image upload and disease classification with Open-Set / OOD rejection.
 """
 
 import os
@@ -8,6 +8,7 @@ import sys
 import uuid
 import base64
 import io
+import json
 from pathlib import Path
 from datetime import datetime
 
@@ -22,11 +23,24 @@ router = APIRouter()
 UPLOADS_DIR = PROJECT_ROOT / "data" / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
+# 9 Supported crop families
+SUPPORTED_CROPS = [
+    "Apple",
+    "Cherry",
+    "Corn (Maize)",
+    "Grape",
+    "Peach",
+    "Bell Pepper",
+    "Potato",
+    "Strawberry",
+    "Tomato",
+]
+
 
 def _assess_image_quality(image: Image.Image) -> dict:
     """
-    Assess uploaded image quality for field-photo confidence (P2).
-    Returns quality assessment with warnings.
+    Assess uploaded image quality for field-photo confidence.
+    Returns quality assessment with sharpness, brightness, and contrast.
     """
     import numpy as np
     
@@ -45,7 +59,7 @@ def _assess_image_quality(image: Image.Image) -> dict:
         quality_score -= 15
     
     # Brightness check
-    mean_brightness = img_array.mean()
+    mean_brightness = float(img_array.mean())
     if mean_brightness < 40:
         issues.append("Image is very dark — try retaking in better lighting")
         quality_score -= 25
@@ -57,32 +71,36 @@ def _assess_image_quality(image: Image.Image) -> dict:
         quality_score -= 20
     
     # Blur detection (Laplacian variance)
+    sharpness = 100.0
     try:
         gray = img_array.mean(axis=2) if len(img_array.shape) == 3 else img_array
-        # Simple Laplacian approximation
-        laplacian_var = np.var(np.diff(gray, axis=0)) + np.var(np.diff(gray, axis=1))
+        laplacian_var = float(np.var(np.diff(gray, axis=0)) + np.var(np.diff(gray, axis=1)))
+        sharpness = laplacian_var
         if laplacian_var < 50:
             issues.append("Image appears blurry — try holding camera steady and refocusing")
             quality_score -= 20
         elif laplacian_var < 100:
             issues.append("Image may be slightly out of focus")
             quality_score -= 10
-    except:
+    except Exception:
         pass
     
     quality_score = max(0, min(100, quality_score))
     
     return {
         "quality_score": quality_score,
+        "sharpness": round(sharpness, 1),
+        "brightness": round(mean_brightness, 1),
         "issues": issues,
         "is_acceptable": quality_score >= 50,
+        "overall": "poor" if quality_score < 50 else ("moderate" if quality_score < 75 else "good"),
         "resolution": f"{w}×{h}",
     }
 
 
 def _generate_gradcam(image_path: str) -> str:
     """
-    Generate Grad-CAM heatmap overlay (P2 feature).
+    Generate Grad-CAM heatmap overlay.
     Returns base64-encoded image or None if unavailable.
     """
     try:
@@ -176,38 +194,20 @@ def _generate_gradcam(image_path: str) -> str:
         return None
 
 
-def _is_likely_plant(image: Image.Image) -> bool:
-    """Fast color heuristic to check if image is likely a plant/leaf."""
-    try:
-        import numpy as np
-        from matplotlib.colors import rgb_to_hsv
-        img_small = image.resize((50, 50))
-        img_array = np.array(img_small) / 255.0
-        hsv = rgb_to_hsv(img_array)
-        h, s, v = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
-        
-        # Plant hue: roughly between orange (0.05) and cyan (0.5)
-        plant_mask = (h >= 0.05) & (h <= 0.50) & (s >= 0.15) & (v >= 0.15)
-        plant_ratio = np.sum(plant_mask) / (50 * 50)
-        
-        # Require at least 2% plant-like pixels
-        return plant_ratio > 0.02
-    except:
-        return True # Fallback to allow if error
-
-
 @router.post("/predict")
 async def predict_disease(file: UploadFile = File(...)):
     """
-    Upload a leaf/crop image and get disease prediction.
+    Upload a leaf/crop image and get disease prediction with Open-Set / OOD rejection.
     Uses real trained model — no mocks.
     """
-    # Validate file type
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(400, "File must be an image (JPEG, PNG)")
+    # Validate file type flexibly by mimetype or extension
+    valid_exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+    file_ext = Path(file.filename or "image.jpg").suffix.lower() or ".jpg"
+    is_image_type = (file.content_type and file.content_type.startswith("image/")) or (file_ext in valid_exts)
+    if not is_image_type:
+        raise HTTPException(400, "File must be an image (JPEG, PNG, WEBP)")
     
     # Save uploaded file
-    file_ext = Path(file.filename or "image.jpg").suffix or ".jpg"
     filename = f"{uuid.uuid4()}{file_ext}"
     filepath = UPLOADS_DIR / filename
     
@@ -216,29 +216,62 @@ async def predict_disease(file: UploadFile = File(...)):
         f.write(contents)
     
     try:
-        # Open and validate image
-        image = Image.open(filepath).convert("RGB")
-        
-        # Strict OOD Color check
-        if not _is_likely_plant(image):
-            raise HTTPException(400, "Image does not appear to be a plant or leaf. Please upload a clear photo of crop foliage.")
+        # Open and validate image format
+        try:
+            image = Image.open(filepath).convert("RGB")
+        except Exception:
+            raise HTTPException(400, "Uploaded file could not be decoded as an image.")
             
-        # Quality assessment (P2)
+        # Quality assessment
         quality = _assess_image_quality(image)
+        if quality.get("overall") == "poor" and quality.get("sharpness", 100) < 10.0:
+            return {
+                "success": True,
+                "is_supported_crop": False,
+                "out_of_distribution": True,
+                "error_type": "LOW_IMAGE_QUALITY",
+                "message": "The uploaded photo is too blurry or low quality for reliable crop diagnosis. Please upload a clear, focused photograph.",
+                "detected_properties": {
+                    "is_plant": True,
+                    "confidence": 0.0,
+                    "quality": quality,
+                },
+                "supported_crops": SUPPORTED_CROPS,
+            }
         
-        # Run prediction using real trained model
+        # Run prediction with feature-embedding OOD rejection
         from predict import predict
         result = predict(str(filepath))
         
-        # Out-Of-Distribution (OOD) confidence check
-        if result["confidence"] < 0.60:
-            raise HTTPException(400, "Image not recognized with high confidence. Please upload a clear photo of a supported crop leaf.")
+        # Check if the model flagged the input as Out-Of-Distribution / Unsupported
+        if not result.get("is_supported_crop", True):
+            return {
+                "success": True,
+                "is_supported_crop": False,
+                "out_of_distribution": True,
+                "error_type": result.get("error_type", "UNSEEN_SPECIES_DETECTED"),
+                "message": result.get("message", "The provided image does not match any of the 9 supported crops. Our system is trained exclusively on Apple, Cherry, Corn (Maize), Grape, Peach, Bell Pepper, Potato, Strawberry, and Tomato."),
+                "detected_properties": result.get("detected_properties", {
+                    "is_plant": True,
+                    "confidence": 0.0,
+                }),
+                "supported_crops": result.get("supported_crops", SUPPORTED_CROPS),
+                "image_path": f"/uploads/{filename}",
+                "quality": quality,
+            }
         
-        # Generate Grad-CAM (P2) — best-effort
+        # Supported crop: Generate Grad-CAM explainability overlay
         gradcam_base64 = _generate_gradcam(str(filepath))
+        
+        top_preds = [
+            {"class": c, "confidence": p, "class_label": c}
+            for c, p in result.get("top_k", [])
+        ]
         
         return {
             "success": True,
+            "is_supported_crop": True,
+            "out_of_distribution": False,
             "prediction": {
                 "class_label": result["class_label"],
                 "confidence": result["confidence"],
@@ -248,17 +281,39 @@ async def predict_disease(file: UploadFile = File(...)):
                 "disease": result["disease"],
                 "severity": result["severity"],
                 "is_healthy": result["is_healthy"],
-                "guidance": result["guidance"],
-                "top_predictions": [
-                    {"class": cls, "confidence": conf}
-                    for cls, conf in result["top_k"]
-                ],
+                "guidance": result.get("guidance", []),
+                "top_predictions": top_preds,
+                "cosine_similarity": result.get("cosine_similarity"),
+                "energy_score": result.get("energy_score"),
             },
-            "image_quality": quality,
+            "guidance": result.get("guidance", []),
+            "top_predictions": top_preds,
             "gradcam": gradcam_base64,
-            "image_url": f"/uploads/{filename}",
-            "timestamp": datetime.now().isoformat(),
+            "quality": quality,
+            "image_quality": quality,
+            "image_path": f"/uploads/{filename}",
+            "supported_crops": SUPPORTED_CROPS,
         }
-    
+        
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, f"Prediction failed: {str(e)}")
+
+
+@router.get("/supported_crops")
+def get_supported_crops():
+    """Return the list of 9 supported crop families and all 33 conditions."""
+    from predict import DISEASE_GUIDANCE
+    mapping_path = PROJECT_ROOT / "ml" / "artifacts" / "class_mapping.json"
+    classes = []
+    if mapping_path.exists():
+        with open(mapping_path) as f:
+            classes = list(json.load(f).get("class_to_idx", {}).keys())
+            
+    return {
+        "success": True,
+        "crop_families": SUPPORTED_CROPS,
+        "total_conditions": len(classes),
+        "conditions": classes,
+    }

@@ -28,7 +28,21 @@ PROJECT_ROOT = Path(__file__).parent.parent
 WEIGHTS_PATH = PROJECT_ROOT / "model" / "weights" / "best_model.pth"
 CLASS_MAPPING_PATH = PROJECT_ROOT / "ml" / "artifacts" / "class_mapping.json"
 
-# Disease information database for actionable guidance
+# Centroids & OOD configuration
+CENTROIDS_PATH = PROJECT_ROOT / "ml" / "artifacts" / "class_centroids.pt"
+SUPPORTED_CROPS = [
+    "Apple",
+    "Cherry",
+    "Corn (Maize)",
+    "Grape",
+    "Peach",
+    "Bell Pepper",
+    "Potato",
+    "Strawberry",
+    "Tomato",
+]
+OOD_COSINE_THRESHOLD = 0.58
+OOD_ENERGY_THRESHOLD = -45.0
 DISEASE_GUIDANCE = {
     # Tomato diseases
     "Tomato___Bacterial_spot": {
@@ -411,12 +425,22 @@ def _load_model(weights_path: str = None, device: str = None):
     _model_cache["device"] = dev
     _model_cache["transform"] = transform
     
+    # Load Class Centroids for OOD detection
+    centroids = None
+    if CENTROIDS_PATH.exists():
+        try:
+            c_data = torch.load(CENTROIDS_PATH, map_location=dev)
+            centroids = c_data.get("class_centroids")
+        except Exception as e:
+            print(f"[WARN] Could not load class centroids: {e}")
+    _model_cache["centroids"] = centroids
+    
     return model, checkpoint, dev, transform
 
 
 def predict(image_path: str, weights_path: str = None, top_k: int = 3) -> dict:
     """
-    Predict crop disease from a leaf image.
+    Predict crop disease from a leaf image with Open-Set / OOD rejection.
     
     Args:
         image_path: Path to the leaf/crop image
@@ -424,15 +448,7 @@ def predict(image_path: str, weights_path: str = None, top_k: int = 3) -> dict:
         top_k: Number of top predictions to return
     
     Returns:
-        dict with keys:
-            - class_label: predicted class name (str)
-            - confidence: prediction confidence 0-1 (float)
-            - crop: crop name (str)
-            - disease: disease name (str)
-            - severity: severity level (str)
-            - guidance: list of actionable guidance strings
-            - top_k: list of (class_name, confidence) tuples
-            - is_healthy: boolean
+        dict with prediction results or OOD rejection schema.
     """
     # Load model
     model, checkpoint, device, transform = _load_model(weights_path)
@@ -442,15 +458,69 @@ def predict(image_path: str, weights_path: str = None, top_k: int = 3) -> dict:
     image = Image.open(image_path).convert("RGB")
     input_tensor = transform(image).unsqueeze(0).to(device)
     
-    # Predict
+    # Predict & Extract 1280-dim feature embedding representation
     with torch.no_grad():
-        if device.type == 'cuda':
-            with torch.amp.autocast('cuda'):
-                output = model(input_tensor)
-        else:
-            output = model(input_tensor)
+        feat = model.features(input_tensor)
+        feat = model.avgpool(feat)
+        feat = torch.flatten(feat, 1)
+        feat_norm = feat / (torch.norm(feat, p=2, dim=1, keepdim=True) + 1e-8)
         
+        output = model.classifier(feat)
         probs = torch.softmax(output, dim=1)[0]
+    
+    # Free Energy Score: E(x) = -T * logsumexp(z / T)
+    energy = float((-1.0 * torch.logsumexp(output, dim=1)).item())
+    
+    # Nearest Class Centroid Cosine Similarity
+    centroids = _model_cache.get("centroids")
+    if centroids is not None:
+        sims = torch.mv(centroids.to(device), feat_norm.squeeze(0))
+        max_sim = float(sims.max().item())
+    else:
+        max_sim = 1.0
+        
+    # Calibrated OOD Detection:
+    # Empirical Threshold: max_sim < 0.58 indicates sample is outside the 33 PlantVillage classes
+    is_ood = False
+    error_type = None
+    
+    if max_sim < OOD_COSINE_THRESHOLD or energy > OOD_ENERGY_THRESHOLD:
+        is_ood = True
+        # Do not use energy alone to classify an image as non-plant (unseen plants like wheat can have diffuse energy).
+        # Only categorize as NON_PLANT_IMAGE if feature representation is deeply decoupled from plant domain (< 0.20).
+        if max_sim < 0.20:
+            error_type = "NON_PLANT_IMAGE"
+        else:
+            error_type = "UNSEEN_SPECIES_DETECTED"
+        
+    if is_ood:
+        return {
+            "success": True,
+            "is_supported_crop": False,
+            "out_of_distribution": True,
+            "error_type": error_type,
+            "message": "The provided image does not match any of the 9 supported crops. Our system is trained exclusively on Apple, Cherry, Corn (Maize), Grape, Peach, Bell Pepper, Potato, Strawberry, and Tomato.",
+            "detected_properties": {
+                "is_plant": error_type == "UNSEEN_SPECIES_DETECTED",
+                "confidence": 0.0,
+                "cosine_similarity": round(max_sim, 4),
+                "energy_score": round(energy, 2),
+            },
+            "supported_crops": SUPPORTED_CROPS,
+            "class_label": "Unsupported_Crop",
+            "crop": "Unsupported Crop",
+            "leaf_name": "Unknown Leaf",
+            "leaf_display_name": "⚠️ Unsupported Plant",
+            "disease": "No supported disease",
+            "severity": "Unknown",
+            "guidance": [
+                "AgriSmart AI refused to guess on an unsupported species to prevent false treatment guidance.",
+                "Ensure your crop is one of our 9 supported families: Apple, Cherry, Corn, Grape, Peach, Bell Pepper, Potato, Strawberry, Tomato.",
+                "Upload a clear photograph showing the foliage of a supported crop.",
+            ],
+            "top_k": [],
+            "is_healthy": False,
+        }
     
     # Get top-k predictions
     top_probs, top_indices = probs.topk(min(top_k, len(probs)))
@@ -493,6 +563,11 @@ def predict(image_path: str, weights_path: str = None, top_k: int = 3) -> dict:
     leaf_display_name = f"🍃 {leaf_name}"
     
     result = {
+        "success": True,
+        "is_supported_crop": True,
+        "out_of_distribution": False,
+        "cosine_similarity": round(max_sim, 4),
+        "energy_score": round(energy, 2),
         "class_label": predicted_class,
         "confidence": confidence,
         "crop": crop,
@@ -503,6 +578,7 @@ def predict(image_path: str, weights_path: str = None, top_k: int = 3) -> dict:
         "guidance": guidance,
         "top_k": top_predictions,
         "is_healthy": is_healthy,
+        "supported_crops": SUPPORTED_CROPS,
     }
     
     return result

@@ -1,0 +1,107 @@
+{
+  "calibrated_cosine_threshold": 0.58,
+  "calibrated_energy_threshold": -45.0,
+  "temperature": 1.0,
+  "id_sample_count": 330,
+  "ood_sample_count": 7,
+  "id_acceptance_rate": 0.9667,
+  "id_acceptance_rate_combined_or": 0.9667,
+  "id_acceptance_rate_cosine_only": 0.9727,
+  "id_acceptance_rate_energy_only": 0.9939,
+  "ood_rejection_rate": 1.0,
+  "false_ood_rate": 0.0333,
+  "auroc": 1.0,
+  "id_cosine_stats": {
+    "min": 0.5313,
+    "max": 0.934,
+    "mean": 0.7809,
+    "median": 0.7951,
+    "p1": 0.5851,
+    "p5": 0.634
+  },
+  "ood_samples_evaluated": [
+    {
+      "file": "tulsi_leaf.jpg",
+      "plant_name": "Tulsi (Holy Basil)",
+      "category": "UNSEEN_SPECIES_DETECTED",
+      "cosine_similarity": 0.5263,
+      "energy_score": -122.71,
+      "rejected_by_cosine": true,
+      "rejected_by_energy": false,
+      "final_decision": "OOD_REJECTED"
+    },
+    {
+      "file": "mango_leaf.jpg",
+      "plant_name": "Mango Leaf",
+      "category": "UNSEEN_SPECIES_DETECTED",
+      "cosine_similarity": 0.3376,
+      "energy_score": -69.89,
+      "rejected_by_cosine": true,
+      "rejected_by_energy": false,
+      "final_decision": "OOD_REJECTED"
+    },
+    {
+      "file": "neem_leaf.jpg",
+      "plant_name": "Neem Leaf",
+      "category": "UNSEEN_SPECIES_DETECTED",
+      "cosine_similarity": 0.3766,
+      "energy_score": -107.33,
+      "rejected_by_cosine": true,
+      "rejected_by_energy": false,
+      "final_decision": "OOD_REJECTED"
+    },
+    {
+      "file": "rose_leaf.jpg",
+      "plant_name": "Rose Leaf",
+      "category": "UNSEEN_SPECIES_DETECTED",
+      "cosine_similarity": 0.4759,
+      "energy_score": -114.42,
+      "rejected_by_cosine": true,
+      "rejected_by_energy": false,
+      "final_decision": "OOD_REJECTED"
+    },
+    {
+      "file": "houseplant_ficus.jpg",
+      "plant_name": "Ficus (Houseplant)",
+      "category": "UNSEEN_SPECIES_DETECTED",
+      "cosine_similarity": 0.363,
+      "energy_score": -56.4,
+      "rejected_by_cosine": true,
+      "rejected_by_energy": false,
+      "final_decision": "OOD_REJECTED"
+    },
+    {
+      "file": "wheat_leaf.jpg",
+      "plant_name": "Wheat Leaf (Unseen Crop)",
+      "category": "UNSEEN_SPECIES_DETECTED",
+      "cosine_similarity": 0.2883,
+      "energy_score": -30.09,
+      "rejected_by_cosine": true,
+      "rejected_by_energy": true,
+      "final_decision": "OOD_REJECTED"
+    },
+    {
+      "file": "tractor_tool.jpg",
+      "plant_name": "Tractor Hardware",
+      "category": "NON_PLANT_IMAGE",
+      "cosine_similarity": 0.1403,
+      "energy_score": -33.33,
+      "rejected_by_cosine": true,
+      "rejected_by_energy": true,
+      "final_decision": "OOD_REJECTED"
+    }
+  ],
+  "supported_crops": [
+    "Apple",
+    "Cherry",
+    "Corn (Maize)",
+    "Grape",
+    "Peach",
+    "Bell Pepper",
+    "Potato",
+    "Strawberry",
+    "Tomato"
+  ],
+  "num_supported_classes": 33,
+  "methodology": "Pre-classifier EfficientNet-B0 1280-dim embedding space centroid distance + Free Energy scoring combined with OR decision rule."
+}

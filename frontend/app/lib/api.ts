@@ -5,14 +5,31 @@
  * Eliminates 'Failed to fetch' network errors permanently.
  */
 
-const DIRECT_BACKEND = "http://127.0.0.1:8000";
+function getDirectBackend(): string {
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname || "localhost";
+    return `http://${host}:8000`;
+  }
+  return "http://127.0.0.1:8000";
+}
 
-export async function resilientFetch(endpoint: string, options?: RequestInit): Promise<Response> {
+export async function resilientFetch(
+  endpoint: string, 
+  optionsInit?: RequestInit | (() => RequestInit)
+): Promise<Response> {
   const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  const directBackend = getDirectBackend();
   
+  const getOptions = () => {
+    if (typeof optionsInit === "function") {
+      return optionsInit();
+    }
+    return optionsInit || {};
+  };
+
   // Attempt 1: Same-origin Next.js proxy (/api/...)
   try {
-    const res = await fetch(cleanEndpoint, options);
+    const res = await fetch(cleanEndpoint, getOptions());
     if (res.ok) return res;
     // If proxy returned 502/504 or 404, fall through to direct backend
     if (res.status >= 500 || res.status === 404) {
@@ -25,23 +42,26 @@ export async function resilientFetch(endpoint: string, options?: RequestInit): P
   }
 
   // Attempt 2: Direct FastAPI backend
-  const directUrl = `${DIRECT_BACKEND}${cleanEndpoint}`;
+  const directUrl = `${directBackend}${cleanEndpoint}`;
   try {
-    return await fetch(directUrl, options);
+    return await fetch(directUrl, getOptions());
   } catch (directErr) {
     console.error(`Direct fetch also failed for ${directUrl}:`, directErr);
-    throw new Error(`Unable to connect to AgriSmart AI backend service. Please verify server is running.`);
+    throw new Error(`Unable to connect to AgriSmart AI backend service at ${directUrl}. Please verify server is running.`);
   }
 }
 
 export async function predictDisease(file: File) {
-  const formData = new FormData();
-  formData.append("file", file);
+  const optionsFactory = () => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return {
+      method: "POST",
+      body: formData,
+    };
+  };
 
-  const response = await resilientFetch("/api/predict", {
-    method: "POST",
-    body: formData,
-  });
+  const response = await resilientFetch("/api/predict", optionsFactory);
 
   if (!response.ok) {
     const errData = await response.json().catch(() => ({}));
