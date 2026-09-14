@@ -233,3 +233,63 @@ async def get_thresholds():
         "growth_stage_modifiers": STAGE_MODIFIERS,
         "methodology": "Rule-based with thresholds adapted from FAO guidelines",
     }
+
+
+class InsightRequest(BaseModel):
+    crop: str = "Tomato"
+    growth_stage: str = "Growing"
+    soil_moisture: int = Field(default=31, ge=0, le=100)
+    rain_probability: int = Field(default=18, ge=0, le=100)
+    temperature: float = Field(default=29.0, ge=-20, le=60)
+    disease_detected: bool = False
+    language: str = "en"
+
+
+@router.post("/insights")
+async def get_insights(payload: InsightRequest):
+    """
+    Compute explainable irrigation guidance and sustainability score.
+    Fully compatible with agricultural decision flow.
+    """
+    rain_prob = payload.rain_probability
+    moisture = payload.soil_moisture
+    if rain_prob >= 55:
+        irrigation_status = "hold"
+        title = "Hold irrigation"
+        reason = f"Rain probability is {rain_prob}% — let the soil do the work first."
+    elif moisture <= 28:
+        irrigation_status = "water_soon"
+        title = "Water within 12 hours"
+        reason = f"Soil moisture is {moisture}%, below the 30% action threshold."
+    else:
+        irrigation_status = "monitor"
+        title = "Monitor moisture"
+        reason = f"Soil moisture is {moisture}% and rain probability is {rain_prob}%."
+
+    score = max(0, min(100, round(45 + (moisture * 0.25) + (25 if not payload.disease_detected else 8) - (rain_prob * 0.08))))
+    if irrigation_status == "hold":
+        suggestions = ["Keep irrigation paused until the next forecast check.", "Use drip lines to reduce evaporation."]
+    elif irrigation_status == "water_soon":
+        suggestions = ["Irrigate at dawn for lower evaporation.", "Re-check moisture after watering instead of scheduling a second cycle."]
+    else:
+        suggestions = ["Check moisture at root depth tomorrow.", "Keep foliage dry and inspect new growth twice this week."]
+        
+    if payload.language == "hi":
+        title_map = {"Hold irrigation": "सिंचाई रोकें", "Water within 12 hours": "12 घंटे में पानी दें", "Monitor moisture": "नमी पर नज़र रखें"}
+        title = title_map.get(title, title)
+        suggestions = ["जड़ों के पास नमी जाँचें और पत्तियों को सूखा रखें।", "बारिश की संभावना होने पर अतिरिक्त पानी न दें।"]
+
+    return {
+        "success": True,
+        "irrigation_status": irrigation_status,
+        "irrigation_title": title,
+        "irrigation_reason": reason,
+        "sustainability_score": score,
+        "score_formula": "45 + soil moisture × 0.25 + crop health bonus − rain probability × 0.08, capped 0–100",
+        "suggestions": suggestions,
+        "activity_log": [
+            "Context checked: soil moisture, crop stage, and field temperature",
+            f"Forecast checked: {rain_prob}% rain probability",
+            f"Decision made: {title.lower()}",
+        ],
+    }

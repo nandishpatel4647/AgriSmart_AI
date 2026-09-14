@@ -149,6 +149,16 @@ export function generateAdvisorySpeechText(
 
   // 1. OPEN-SET / OOD SAFETY SPEECH (Directive 6)
   if (result.is_supported_crop === false || result.out_of_distribution === true) {
+    if (result.error_type === "NON_PLANT_IMAGE") {
+      if (language === "hindi") {
+        return "यह छवि किसी पौधे या पत्ते की नहीं लग रही है। एग्रीस्मार्ट एआई केवल फसल की पत्तियों के रोग का सटीक विश्लेषण करता है। कृपया किसी फसल की पत्ती का साफ़ फोटो अपलोड करें।";
+      }
+      if (language === "gujarati") {
+        return "આ ફોટો કોઈ પાક કે પાનનો નથી લાગતો. એગ્રીસ્માર્ટ એઆઈ ફક્ત પાકના પાંદડાના રોગનું સચોટ વિશ્લેષણ કરે છે. કૃપા કરીને પાકની પત્તીનો સ્પષ્ટ ફોટો અપલોડ કરો.";
+      }
+      return "This image does not appear to be a crop leaf or plant. AgriSmart AI is strictly calibrated for leaf disease diagnosis. Please upload a clear photo of a crop leaf.";
+    }
+
     if (language === "hindi") {
       return "यह पौधा एग्रीस्मार्ट एआई द्वारा समर्थित फसलों में नहीं है। गलत सलाह और अनुपयुक्त रासायनिक छिड़काव से बचने के लिए सिस्टम ने रोग निदान देने से मना किया है। कृपया 9 समर्थित फसलों में से किसी एक की पत्ती का फोटो अपलोड करें।";
     }

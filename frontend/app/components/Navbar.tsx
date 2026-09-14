@@ -56,6 +56,8 @@ export default function Navbar() {
   const baseNavItems = [
     { label: "Dashboard", href: "/", icon: LayoutDashboard },
     { label: "Detect Disease", href: "/detect", icon: Microscope },
+    { label: "Weather", href: "/weather", icon: CloudSun },
+    { label: "AI Assistant", href: "/assistant", icon: Bot },
   ];
 
   const authenticatedNavItems = [
@@ -66,8 +68,6 @@ export default function Navbar() {
   const secondaryNavItems = [
     { label: "Map & Monitor", href: "/map", icon: Map },
     { label: "Crop Recommendation", href: "/rotation", icon: Sprout },
-    { label: "Weather", href: "/weather", icon: CloudSun },
-    { label: "Assistant", href: "/assistant", icon: Bot },
   ];
 
   const navItems = isLoggedIn 

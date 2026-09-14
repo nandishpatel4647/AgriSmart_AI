@@ -4,6 +4,7 @@ Live weather data from Open-Meteo (free, no API key required).
 """
 
 import requests
+from typing import Optional
 from fastapi import APIRouter, Query
 from datetime import datetime, timedelta
 
@@ -213,18 +214,23 @@ def fetch_wttr_fallback(lat: float, lon: float):
 
 @router.get("/weather")
 async def get_weather(
-    lat: float = Query(DEFAULT_LAT, description="Latitude"),
-    lon: float = Query(DEFAULT_LON, description="Longitude"),
+    lat: Optional[float] = Query(None, description="Latitude"),
+    lon: Optional[float] = Query(None, description="Longitude"),
+    latitude: Optional[float] = Query(None, description="Latitude alias"),
+    longitude: Optional[float] = Query(None, description="Longitude alias"),
 ):
     """
     Get live, accurate current weather, forecast, and disease risk assessment.
     Data source: Open-Meteo API + wttr.in fallback resilience.
     """
+    actual_lat = latitude if latitude is not None else (lat if lat is not None else DEFAULT_LAT)
+    actual_lon = longitude if longitude is not None else (lon if lon is not None else DEFAULT_LON)
+    
     try:
         # Fetch enriched current + forecast parameters
         params = {
-            "latitude": lat,
-            "longitude": lon,
+            "latitude": actual_lat,
+            "longitude": actual_lon,
             "current": "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,showers,wind_speed_10m,wind_direction_10m,weather_code,cloud_cover,surface_pressure",
             "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,weather_code,wind_speed_10m_max,uv_index_max",
             "hourly": "temperature_2m,relative_humidity_2m,rain",
@@ -294,8 +300,14 @@ async def get_weather(
         
         return {
             "success": True,
+            "source": "Open-Meteo",
+            "source_url": "https://api.open-meteo.com/v1/forecast",
+            "fetched_at": datetime.utcnow().isoformat(),
             "data_source": data_source,
-            "location": {"latitude": lat, "longitude": lon},
+            "latitude": actual_lat,
+            "longitude": actual_lon,
+            "timezone": "auto",
+            "location": {"latitude": actual_lat, "longitude": actual_lon},
             "current": current,
             "forecast": forecast,
             "disease_risks": disease_risks,

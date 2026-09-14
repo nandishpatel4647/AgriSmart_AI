@@ -110,7 +110,7 @@ export default function DashboardPage() {
                   href="/detect"
                   className="px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-xl shadow-emerald-950/40 flex items-center gap-2 transition-all hover:scale-102 active:scale-98"
                 >
-                  <span>Get Started</span>
+                  <span>Start Scan 🍃</span>
                   <ArrowRight className="w-4 h-4" />
                 </Link>
 

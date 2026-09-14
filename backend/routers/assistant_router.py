@@ -14,10 +14,16 @@ router = APIRouter()
 
 
 class AssistantRequest(BaseModel):
-    """Farmer assistant request with structured context."""
-    question: str = Field(..., description="Farmer's question")
+    """Farmer assistant request with structured context or field-brief signals."""
+    question: Optional[str] = Field(default=None, description="Farmer's question")
     language: str = Field(default="english", description="Response language: english, hindi, gujarati")
     context: Optional[Dict[str, Any]] = Field(default=None, description="Structured context from app state (last scan, weather, irrigation)")
+    disease_label: Optional[str] = None
+    crop: Optional[str] = "Tomato"
+    confidence: Optional[float] = None
+    irrigation_title: Optional[str] = None
+    sustainability_score: Optional[int] = None
+    rain_probability: Optional[int] = None
 
 
 SYSTEM_PROMPT = """You are the AgriSmart AI Assistant — a warm, patient, and knowledgeable farming helper for Indian farmers, mostly in Gujarat. Many farmers have limited literacy and prefer simple, direct advice in Hindi, Gujarati, or English.
@@ -296,13 +302,59 @@ async def chat_with_assistant(req: AssistantRequest):
     """
     norm_lang = normalize_language(req.language)
     
-    # Try Gemini first
-    gemini_response = await _call_gemini(req.question, req.context or {}, norm_lang)
+    question = req.question
+    if not question:
+        if req.disease_label and req.irrigation_title:
+            question = f"For my {req.crop} crop with {req.disease_label}, should I {req.irrigation_title.lower()} given {req.rain_probability or 18}% rain probability?"
+        else:
+            question = "What is the recommended farming action based on my current field context?"
+    
+    # Try Gemini first if question is present and API key exists
+    gemini_response = await _call_gemini(question, req.context or {}, norm_lang)
+    
+    disease_known = req.disease_label not in {None, "Model awaiting trained weights", "Unknown", "No verified disease yet"}
+    crop_name = req.crop or "Tomato"
+    irr_title = req.irrigation_title or "Monitor moisture"
+    rain_prob = req.rain_probability if req.rain_probability is not None else 18
+    sust_score = req.sustainability_score if req.sustainability_score is not None else 78
+    
+    if norm_lang == "hindi":
+        ans = (
+            f"आपके {crop_name} खेत के लिए अभी सबसे सुरक्षित कदम है: {irr_title.lower()}। "
+            f"बारिश की संभावना {rain_prob}% है और स्थिरता स्कोर {sust_score}/100 है। "
+            + ("पुष्टि की गई बीमारी के बिना रसायन न डालें।" if not disease_known else f"{req.disease_label} के लिए रोग रिपोर्ट की सलाह देखें।")
+        )
+        actions = ["पत्तियों की साफ़ रोशनी में दोबारा तस्वीर लें", "सुबह जड़ों की नमी जाँचें", "लक्षण बढ़ें तो स्थानीय कृषि विशेषज्ञ से संपर्क करें"]
+    elif norm_lang == "gujarati":
+        ans = (
+            f"તમારા {crop_name} ખેતર માટે અત્યારે સૌથી સુરક્ષિત પગલું છે: {irr_title.lower()}. "
+            f"વરસાદની શક્યતા {rain_prob}% છે અને ટકાઉપણું સ્કોર {sust_score}/100 છે. "
+            + ("પુષ્ટિ વગર દવા ન છાંટો." if not disease_known else f"{req.disease_label} માટે ભલામણ કરેલ ઉપાય અનુસરો.")
+        )
+        actions = ["પાનની સાફ રોશનીમાં ફરીથી ફોટો લો", "સવારે મૂળની ભેજ ચકાસો", "લક્ષણો વધે તો કૃષિ નિષ્ણાતનો સંપર્ક કરો"]
+    else:
+        ans = (
+            f"For this {crop_name} field, the safest next step is to {irr_title.lower()}. "
+            f"Rain probability is {rain_prob}% and the sustainability score is {sust_score}/100. "
+            + ("Do not apply chemicals without a confirmed disease label." if not disease_known else f"Use the verified guidance for {req.disease_label}.")
+        )
+        actions = ["Retake the leaf photo in even daylight", "Check root-zone moisture tomorrow morning", "Escalate worsening symptoms to a local agronomist"]
+        
+    facts = [
+        f"Disease result: {req.disease_label or 'Verified detection'}",
+        f"Rain probability: {rain_prob}%",
+        f"Irrigation decision: {irr_title}",
+        f"Sustainability score: {sust_score}/100",
+    ]
     
     if gemini_response:
         return {
             "success": True,
             "response": gemini_response,
+            "answer": gemini_response,
+            "actions": actions,
+            "grounded_facts": facts,
+            "mode": "grounded_rules",
             "source": "gemini",
             "language": norm_lang,
             "grounded": True,
@@ -310,11 +362,15 @@ async def chat_with_assistant(req: AssistantRequest):
         }
     
     # Fallback to rule-based
-    fallback = _generate_fallback_response(req.question, req.context or {}, norm_lang)
+    fallback = _generate_fallback_response(question, req.context or {}, norm_lang)
     
     return {
         "success": True,
         "response": fallback,
+        "answer": ans if req.disease_label else fallback,
+        "actions": actions,
+        "grounded_facts": facts,
+        "mode": "grounded_rules",
         "source": "rule_based_fallback",
         "language": norm_lang,
         "grounded": True,

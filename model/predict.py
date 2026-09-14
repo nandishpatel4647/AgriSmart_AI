@@ -490,8 +490,22 @@ def predict(image_path: str, weights_path: str = None, top_k: int = 3) -> dict:
         # Only categorize as NON_PLANT_IMAGE if feature representation is deeply decoupled from plant domain (< 0.20).
         if max_sim < 0.20:
             error_type = "NON_PLANT_IMAGE"
+            message = "This image does not appear to be a crop leaf. AgriSmart AI only accepts plant foliage to prevent invalid diagnostic guidance."
+            leaf_display_name = "⚠️ Non-Plant Image"
+            guidance = [
+                "AgriSmart AI detected that the uploaded image does not contain plant or leaf foliage.",
+                "To get an accurate disease diagnosis, please photograph a leaf from one of our 9 supported crops.",
+                "Ensure good daylight, hold the camera steady, and frame a single leaf in focus.",
+            ]
         else:
             error_type = "UNSEEN_SPECIES_DETECTED"
+            message = "The provided image does not match any of the 9 supported crops. Our system is trained exclusively on Apple, Cherry, Corn (Maize), Grape, Peach, Bell Pepper, Potato, Strawberry, and Tomato."
+            leaf_display_name = "⚠️ Unsupported Plant"
+            guidance = [
+                "AgriSmart AI refused to guess on an unsupported species to prevent false treatment guidance.",
+                "Ensure your crop is one of our 9 supported families: Apple, Cherry, Corn, Grape, Peach, Bell Pepper, Potato, Strawberry, Tomato.",
+                "Upload a clear photograph showing the foliage of a supported crop.",
+            ]
         
     if is_ood:
         return {
@@ -499,7 +513,7 @@ def predict(image_path: str, weights_path: str = None, top_k: int = 3) -> dict:
             "is_supported_crop": False,
             "out_of_distribution": True,
             "error_type": error_type,
-            "message": "The provided image does not match any of the 9 supported crops. Our system is trained exclusively on Apple, Cherry, Corn (Maize), Grape, Peach, Bell Pepper, Potato, Strawberry, and Tomato.",
+            "message": message,
             "detected_properties": {
                 "is_plant": error_type == "UNSEEN_SPECIES_DETECTED",
                 "confidence": 0.0,
@@ -507,17 +521,13 @@ def predict(image_path: str, weights_path: str = None, top_k: int = 3) -> dict:
                 "energy_score": round(energy, 2),
             },
             "supported_crops": SUPPORTED_CROPS,
-            "class_label": "Unsupported_Crop",
-            "crop": "Unsupported Crop",
-            "leaf_name": "Unknown Leaf",
-            "leaf_display_name": "⚠️ Unsupported Plant",
+            "class_label": "Unsupported_Crop" if error_type != "NON_PLANT_IMAGE" else "Non_Plant_Object",
+            "crop": "Unsupported Crop" if error_type != "NON_PLANT_IMAGE" else "Non-Plant Object",
+            "leaf_name": "Unknown Leaf" if error_type != "NON_PLANT_IMAGE" else "Not a Leaf",
+            "leaf_display_name": leaf_display_name,
             "disease": "No supported disease",
             "severity": "Unknown",
-            "guidance": [
-                "AgriSmart AI refused to guess on an unsupported species to prevent false treatment guidance.",
-                "Ensure your crop is one of our 9 supported families: Apple, Cherry, Corn, Grape, Peach, Bell Pepper, Potato, Strawberry, Tomato.",
-                "Upload a clear photograph showing the foliage of a supported crop.",
-            ],
+            "guidance": guidance,
             "top_k": [],
             "is_healthy": False,
         }

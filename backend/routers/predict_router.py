@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 
+from typing import Optional
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from PIL import Image
 
@@ -197,23 +198,32 @@ def _generate_gradcam(image_path: str) -> str:
 
 
 @router.post("/predict")
-async def predict_disease(file: UploadFile = File(...)):
+@router.post("/diagnose")
+async def predict_disease(
+    file: Optional[UploadFile] = File(None),
+    image: Optional[UploadFile] = File(None),
+):
     """
     Upload a leaf/crop image and get disease prediction with Open-Set / OOD rejection.
     Uses real trained model — no mocks.
     """
+    upload = file or image
+    if upload is None:
+        raise HTTPException(422, "Please upload an image file using either 'file' or 'image' field.")
+
     # Validate file type flexibly by mimetype or extension
     valid_exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
-    file_ext = Path(file.filename or "image.jpg").suffix.lower() or ".jpg"
-    is_image_type = (file.content_type and file.content_type.startswith("image/")) or (file_ext in valid_exts)
+    file_ext = Path(upload.filename or "image.jpg").suffix.lower() or ".jpg"
+    is_image_type = (upload.content_type and upload.content_type.startswith("image/")) or (file_ext in valid_exts)
     if not is_image_type:
         raise HTTPException(400, "File must be an image (JPEG, PNG, WEBP)")
     
     # Save uploaded file
-    filename = f"{uuid.uuid4()}{file_ext}"
+    scan_id = str(uuid.uuid4())
+    filename = f"{scan_id}{file_ext}"
     filepath = UPLOADS_DIR / filename
     
-    contents = await file.read()
+    contents = await upload.read()
     with open(filepath, "wb") as f:
         f.write(contents)
     
@@ -247,14 +257,25 @@ async def predict_disease(file: UploadFile = File(...)):
         
         # Check if the model flagged the input as Out-Of-Distribution / Unsupported
         if not result.get("is_supported_crop", True):
+            is_non_plant = result.get("error_type") == "NON_PLANT_IMAGE"
             return {
                 "success": True,
                 "is_supported_crop": False,
                 "out_of_distribution": True,
+                "id": scan_id,
+                "status": "ready",
+                "model_status": "ready",
+                "filename": upload.filename or filename,
+                "disease_label": "Non-Plant Object (Not a Leaf)" if is_non_plant else "Unsupported Crop",
+                "confidence": 0.0,
+                "crop": "Unsupported Crop" if not is_non_plant else "Non-Plant Object",
+                "created_at": datetime.utcnow().isoformat(),
+                "analysis_note": result.get("message", "AgriSmart AI refused to guess on out-of-distribution input to prevent false guidance."),
+                "precautionary_guidance": result.get("guidance", ["Upload a clear photograph showing the foliage of a supported crop."]),
                 "error_type": result.get("error_type", "UNSEEN_SPECIES_DETECTED"),
-                "message": result.get("message", "The provided image does not match any of the 9 supported crops. Our system is trained exclusively on Apple, Cherry, Corn (Maize), Grape, Peach, Bell Pepper, Potato, Strawberry, and Tomato."),
+                "message": result.get("message", "The provided image does not match any of the 9 supported crops."),
                 "detected_properties": result.get("detected_properties", {
-                    "is_plant": True,
+                    "is_plant": not is_non_plant,
                     "confidence": 0.0,
                 }),
                 "supported_crops": result.get("supported_crops", SUPPORTED_CROPS),
@@ -274,6 +295,16 @@ async def predict_disease(file: UploadFile = File(...)):
             "success": True,
             "is_supported_crop": True,
             "out_of_distribution": False,
+            "id": scan_id,
+            "status": "ready",
+            "model_status": "ready",
+            "filename": upload.filename or filename,
+            "disease_label": result["disease"],
+            "confidence": result["confidence"],
+            "crop": result["crop"],
+            "created_at": datetime.utcnow().isoformat(),
+            "analysis_note": "Prediction returned by trained EfficientNet-B0 with calibrated OOD rejection.",
+            "precautionary_guidance": result.get("guidance", []),
             "prediction": {
                 "class_label": result["class_label"],
                 "confidence": result["confidence"],

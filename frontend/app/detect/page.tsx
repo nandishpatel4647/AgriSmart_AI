@@ -626,17 +626,21 @@ export default function DiseaseDetectionPage() {
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300/60">
                       <ShieldAlert className="w-3.5 h-3.5 text-amber-700" />
-                      OPEN-SET REJECTION ACTIVE
+                      {result.error_type === "NON_PLANT_IMAGE" ? "NON-LEAF OBJECT DETECTED" : "OPEN-SET REJECTION ACTIVE"}
                     </span>
                     <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
                       REFUSED TO GUESS
                     </span>
                   </div>
                   <h2 className="font-serif text-3xl font-bold text-gray-900">
-                    Unsupported Crop Detected
+                    {result.error_type === "NON_PLANT_IMAGE" 
+                      ? "Non-Plant Object Detected (Not a Leaf)" 
+                      : "Unsupported Crop Detected"}
                   </h2>
                   <p className="text-sm font-medium text-gray-700 max-w-2xl leading-relaxed">
-                    We detected foliage, but this plant is not in our 9 trained crop families. AgriSmart AI avoided giving a false diagnosis.
+                    {result.error_type === "NON_PLANT_IMAGE"
+                      ? "The uploaded image does not appear to be a plant leaf or crop foliage. AgriSmart AI is strictly calibrated for agricultural crop leaves to prevent false diagnostic advice."
+                      : (result.message || "We detected foliage, but this plant is not in our 9 trained crop families. AgriSmart AI avoided giving a false diagnosis to prevent misapplied chemicals.")}
                   </p>
                 </div>
 
