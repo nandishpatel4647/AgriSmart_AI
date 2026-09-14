@@ -1,0 +1,47 @@
+[
+  {
+    "filename": "tomato_late_blight_field.jpg",
+    "source": "frontend/public/samples/tomato_late_blight.jpg",
+    "crop": "Tomato",
+    "true_label": "Tomato___Late_blight",
+    "field_condition": "Natural sunlight, dried necrotic blight on blade, plucked leaf on ground",
+    "is_supported": true,
+    "path": "data\\farmer_phone_eval\\tomato_late_blight_field.jpg"
+  },
+  {
+    "filename": "apple_scab_orchard.jpg",
+    "source": "frontend/public/samples/apple_scab.jpg",
+    "crop": "Apple",
+    "true_label": "Apple___Apple_scab",
+    "field_condition": "Orchard branch context, uneven natural sunlight, margin lesions",
+    "is_supported": true,
+    "path": "data\\farmer_phone_eval\\apple_scab_orchard.jpg"
+  },
+  {
+    "filename": "corn_rust_stalk.jpg",
+    "source": "frontend/public/samples/corn_common_rust.jpg",
+    "crop": "Corn (Maize)",
+    "true_label": "Corn_(maize)___Common_rust_",
+    "field_condition": "Full leaf blade, elongated field rust pustules, handheld phone angle",
+    "is_supported": true,
+    "path": "data\\farmer_phone_eval\\corn_rust_stalk.jpg"
+  },
+  {
+    "filename": "potato_early_blight_field.jpg",
+    "source": "frontend/public/samples/potato_early_blight.jpg",
+    "crop": "Potato",
+    "true_label": "Potato___Early_blight",
+    "field_condition": "Target-board concentric lesions, outdoor ground lighting",
+    "is_supported": true,
+    "path": "data\\farmer_phone_eval\\potato_early_blight_field.jpg"
+  },
+  {
+    "filename": "grape_rot_vine.jpg",
+    "source": "frontend/public/samples/grape_black_rot.jpg",
+    "crop": "Grape",
+    "true_label": "Grape___Black_rot",
+    "field_condition": "Vine canopy leaf, necrotic circular spots, high dynamic range",
+    "is_supported": true,
+    "path": "data\\farmer_phone_eval\\grape_rot_vine.jpg"
+  }
+]

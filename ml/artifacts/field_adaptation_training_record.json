@@ -1,0 +1,102 @@
+{
+  "output_checkpoint": "D:\\Projects\\Agrismart AI\\model\\weights\\field_adapted_model.pth",
+  "sha256": "79C91CDFB62A7B8BCCFCBD23D13B370D210A52802E7A8F1EB4E2D2755FFD0CB9",
+  "best_epoch": 8,
+  "best_val_score": 0.8206628460579628,
+  "best_field_val_acc": 0.6596306068601583,
+  "best_pv_val_acc": 0.9816950852557673,
+  "runtime_seconds": 2209.33,
+  "peak_vram_mb": 2816.42,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 3.3965914401656674,
+      "train_acc": 0.4401120848983485,
+      "actual_field_mix": 0.298634710546712,
+      "pv_val_acc": 0.8588264794383149,
+      "field_val_acc": 0.42216358839050133,
+      "combined_score": 0.6404950339144081
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.4935176073314393,
+      "train_acc": 0.6977284922196387,
+      "actual_field_mix": 0.29896261849400824,
+      "pv_val_acc": 0.9302908726178536,
+      "field_val_acc": 0.5197889182058048,
+      "combined_score": 0.7250398954118291
+    },
+    {
+      "epoch": 3,
+      "train_loss": 1.1433643731918544,
+      "train_acc": 0.7853991534012997,
+      "actual_field_mix": 0.3003040600965838,
+      "pv_val_acc": 0.9591273821464393,
+      "field_val_acc": 0.5778364116094987,
+      "combined_score": 0.768481896877969
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.9579921143785441,
+      "train_acc": 0.8406963572408037,
+      "actual_field_mix": 0.2982471829726346,
+      "pv_val_acc": 0.9679037111334002,
+      "field_val_acc": 0.6068601583113457,
+      "combined_score": 0.787381934722373
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.8551102737575043,
+      "train_acc": 0.8688666308948906,
+      "actual_field_mix": 0.29976748345555354,
+      "pv_val_acc": 0.9769307923771314,
+      "field_val_acc": 0.6015831134564644,
+      "combined_score": 0.7892569529167979
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.7757631359490954,
+      "train_acc": 0.8932510582483754,
+      "actual_field_mix": 0.2979192750253383,
+      "pv_val_acc": 0.9804413239719157,
+      "field_val_acc": 0.6437994722955145,
+      "combined_score": 0.8121203981337151
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.7312620448659629,
+      "train_acc": 0.9109282775889823,
+      "actual_field_mix": 0.3007810171108329,
+      "pv_val_acc": 0.9799398194583752,
+      "field_val_acc": 0.6306068601583114,
+      "combined_score": 0.8052733398083433
+    },
+    {
+      "epoch": 8,
+      "train_loss": 0.7034199552246605,
+      "train_acc": 0.9183211113098432,
+      "actual_field_mix": 0.29642878435580994,
+      "pv_val_acc": 0.9816950852557673,
+      "field_val_acc": 0.6596306068601583,
+      "combined_score": 0.8206628460579628
+    },
+    {
+      "epoch": 9,
+      "train_loss": 0.6847034421730701,
+      "train_acc": 0.9255052763369701,
+      "actual_field_mix": 0.30054253860370833,
+      "pv_val_acc": 0.9839518555667001,
+      "field_val_acc": 0.6200527704485488,
+      "combined_score": 0.8020023130076244
+    },
+    {
+      "epoch": 10,
+      "train_loss": 0.6724098173996165,
+      "train_acc": 0.9285160674894175,
+      "actual_field_mix": 0.3004531091635366,
+      "pv_val_acc": 0.9844533600802408,
+      "field_val_acc": 0.6358839050131926,
+      "combined_score": 0.8101686325467167
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "total": 5,
+  "model_a_correct": 5,
+  "model_a_acc": "5/5 (100.0%)",
+  "model_b_correct": 5,
+  "model_b_acc": "5/5 (100.0%)",
+  "details": [
+    {
+      "filename": "tomato_late_blight_field.jpg",
+      "crop": "Tomato",
+      "true_label": "Tomato___Late_blight",
+      "condition": "Natural sunlight, dried necrotic blight on blade, plucked leaf on ground",
+      "model_a": {
+        "prediction": "Tomato___Late_blight",
+        "confidence": 1.0,
+        "is_correct": true
+      },
+      "model_b": {
+        "prediction": "Tomato___Late_blight",
+        "confidence": 0.9968,
+        "is_correct": true
+      }
+    },
+    {
+      "filename": "apple_scab_orchard.jpg",
+      "crop": "Apple",
+      "true_label": "Apple___Apple_scab",
+      "condition": "Orchard branch context, uneven natural sunlight, margin lesions",
+      "model_a": {
+        "prediction": "Apple___Apple_scab",
+        "confidence": 1.0,
+        "is_correct": true
+      },
+      "model_b": {
+        "prediction": "Apple___Apple_scab",
+        "confidence": 1.0,
+        "is_correct": true
+      }
+    },
+    {
+      "filename": "corn_rust_stalk.jpg",
+      "crop": "Corn (Maize)",
+      "true_label": "Corn_(maize)___Common_rust_",
+      "condition": "Full leaf blade, elongated field rust pustules, handheld phone angle",
+      "model_a": {
+        "prediction": "Corn_(maize)___Common_rust_",
+        "confidence": 1.0,
+        "is_correct": true
+      },
+      "model_b": {
+        "prediction": "Corn_(maize)___Common_rust_",
+        "confidence": 0.9993,
+        "is_correct": true
+      }
+    },
+    {
+      "filename": "potato_early_blight_field.jpg",
+      "crop": "Potato",
+      "true_label": "Potato___Early_blight",
+      "condition": "Target-board concentric lesions, outdoor ground lighting",
+      "model_a": {
+        "prediction": "Potato___Early_blight",
+        "confidence": 1.0,
+        "is_correct": true
+      },
+      "model_b": {
+        "prediction": "Potato___Early_blight",
+        "confidence": 0.9994,
+        "is_correct": true
+      }
+    },
+    {
+      "filename": "grape_rot_vine.jpg",
+      "crop": "Grape",
+      "true_label": "Grape___Black_rot",
+      "condition": "Vine canopy leaf, necrotic circular spots, high dynamic range",
+      "model_a": {
+        "prediction": "Grape___Black_rot",
+        "confidence": 1.0,
+        "is_correct": true
+      },
+      "model_b": {
+        "prediction": "Grape___Black_rot",
+        "confidence": 0.9983,
+        "is_correct": true
+      }
+    }
+  ]
+}
