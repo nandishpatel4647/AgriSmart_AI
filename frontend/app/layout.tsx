@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import "./globals.css";
 import Navbar from "./components/Navbar";
+import ScrollToTop from "./components/ScrollToTop";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -17,12 +18,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-full flex flex-col font-sans antialiased text-gray-900 bg-[#F7F9F7]">
         
+        {/* Universal scroll to top on every navigation */}
+        <ScrollToTop />
+
         {/* Top Navbar matching screenshot */}
         <Navbar />
 
         {/* Main Content Area with Popup Modal Page Redirect Transition */}
         <main className="flex-1 w-full min-h-screen flex flex-col">
-          <AnimatePresence mode="wait">
+          <AnimatePresence 
+            mode="wait"
+            onExitComplete={() => {
+              window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+              if (document.documentElement) document.documentElement.scrollTop = 0;
+              if (document.body) document.body.scrollTop = 0;
+            }}
+          >
             <motion.div
               key={pathname}
               initial={{ opacity: 0, scale: 0.96, y: 12 }}

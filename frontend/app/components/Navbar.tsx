@@ -6,7 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { 
   MapPin, 
   Sun, 
-  Bell, 
   ChevronDown, 
   Leaf,
   LayoutDashboard,
@@ -126,16 +125,6 @@ export default function Navbar() {
             <Sun className="w-4 h-4 text-amber-500" />
             <span>29°C</span>
           </div>
-
-          {/* Notification Bell */}
-          <button 
-            type="button" 
-            aria-label="Notifications"
-            className="relative p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white" />
-          </button>
 
           {/* Profile / Auth Dropdown */}
           <div className="relative" ref={dropdownRef}>
