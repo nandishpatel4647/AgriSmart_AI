@@ -199,9 +199,7 @@ def _generate_gradcam(image_path: str) -> str:
         return None
 
 
-@router.post("/predict")
-@router.post("/diagnose")
-async def predict_disease(
+async def _process_prediction(
     file: Optional[UploadFile] = File(None),
     image: Optional[UploadFile] = File(None),
 ):
@@ -361,6 +359,22 @@ async def predict_disease(
         raise
     except Exception as e:
         raise HTTPException(500, f"Prediction failed: {str(e)}")
+
+
+@router.post("/predict")
+async def predict_disease(
+    file: Optional[UploadFile] = File(None),
+    image: Optional[UploadFile] = File(None),
+):
+    return await _process_prediction(file=file, image=image)
+
+
+@router.post("/diagnose")
+async def diagnose_disease(
+    file: Optional[UploadFile] = File(None),
+    image: Optional[UploadFile] = File(None),
+):
+    return await _process_prediction(file=file, image=image)
 
 
 @router.get("/supported_crops")

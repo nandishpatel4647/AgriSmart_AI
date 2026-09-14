@@ -73,6 +73,10 @@ def _simulate_sensor_reading() -> dict:
 
 
 @router.get("/iot")
+async def get_sensor_data_base():
+    return await get_sensor_data()
+
+
 @router.get("/iot/sensors")
 async def get_sensor_data():
     """
