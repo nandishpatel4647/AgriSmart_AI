@@ -27,10 +27,10 @@ export default function DashboardPage() {
     loadData();
   }, []);
 
-  const temp = weather?.current.temperature !== undefined ? Math.round(weather.current.temperature ?? 29) : 29;
-  const windSpeed = weather?.current.wind_speed !== undefined ? Math.round(weather.current.wind_speed ?? 12) : 12;
-  const rainProb = weather?.forecast[0]?.rain_probability !== undefined ? weather.forecast[0].rain_probability : 18;
-  const humidity = weather?.current.humidity !== undefined ? weather.current.humidity : 65;
+  const temp = weather?.current?.temperature !== undefined ? Math.round(weather.current?.temperature ?? 29) : 29;
+  const windSpeed = weather?.current?.wind_speed !== undefined ? Math.round(weather.current?.wind_speed ?? 12) : 12;
+  const rainProb = weather?.forecast?.[0]?.rain_probability !== undefined ? weather.forecast[0].rain_probability : 18;
+  const humidity = weather?.current?.humidity !== undefined ? weather.current?.humidity : 65;
 
   return (
     <div className="w-full" data-testid="dashboard-page">
