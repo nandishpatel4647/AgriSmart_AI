@@ -2,7 +2,7 @@ import type { AssistantResponse, DetectionResponse, InsightInput, InsightRespons
 
 function getDirectBackend(): string {
   if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
+    return process.env.NEXT_PUBLIC_API_URL.trim().replace(/\/+$/, "");
   }
   if (typeof window !== "undefined") {
     const host = window.location.hostname || "localhost";
@@ -40,7 +40,7 @@ export async function resilientFetch(
     const directUrl = `${directBackend}${cleanEndpoint}`;
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
       const opts = getOptions();
       const res = await fetch(directUrl, { ...opts, signal: opts.signal || controller.signal });
       clearTimeout(timeoutId);
@@ -52,7 +52,7 @@ export async function resilientFetch(
 
   // Attempt local/same-origin proxy fetch
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 12000);
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
   const opts = getOptions();
   try {
     const res = await fetch(cleanEndpoint, { ...opts, signal: opts.signal || controller.signal });
@@ -75,11 +75,11 @@ async function request<T>(method: string, path: string, body?: any): Promise<T> 
     headers["Content-Type"] = "application/json";
   }
 
-  const res = await resilientFetch(endpoint, {
+  const res = await resilientFetch(endpoint, () => ({
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
-  });
+  }));
 
   if (!res.ok) {
     const errBody = await res.json().catch(() => null);
@@ -95,17 +95,20 @@ export async function apiUpload<T>(path: string, file: File, field = "image"): P
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
   const endpoint = cleanPath.startsWith("/api") ? cleanPath : `/api${cleanPath}`;
 
-  const formData = new FormData();
-  formData.append(field, file);
-  // Also append 'file' for backend compatibility
-  if (field !== "file") {
-    formData.append("file", file);
-  }
+  const getUploadOptions = () => {
+    const formData = new FormData();
+    formData.append(field, file);
+    // Also append 'file' for backend compatibility
+    if (field !== "file") {
+      formData.append("file", file);
+    }
+    return {
+      method: "POST",
+      body: formData,
+    };
+  };
 
-  const res = await resilientFetch(endpoint, {
-    method: "POST",
-    body: formData,
-  });
+  const res = await resilientFetch(endpoint, getUploadOptions);
 
   if (!res.ok) {
     const errBody = await res.json().catch(() => null);
