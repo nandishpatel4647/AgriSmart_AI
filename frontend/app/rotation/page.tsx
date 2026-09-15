@@ -7,7 +7,7 @@ import { resilientFetch } from "../lib/api";
 export default function RotationPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
-  
+
   const [formData, setFormData] = useState({
     previous_crop: "Corn",
     n: 40,
@@ -29,9 +29,9 @@ export default function RotationPage() {
     e.preventDefault();
     setLoading(true);
     setResult(null);
-    
+
     try {
-      const res = await resilientFetch("/api/recommend_crop", {
+      const res = await resilientFetch("/api/predict_rotation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData)
@@ -51,7 +51,7 @@ export default function RotationPage() {
   return (
     <div className="w-full" data-testid="rotation-page">
       <main className="relative z-10 mx-auto max-w-[1400px] px-5 py-8 sm:px-8 lg:px-12 lg:py-14">
-        
+
         {/* Header Kicker */}
         <div className="section-kicker" data-testid="rotation-kicker">
           <span>07</span> CROP INTELLIGENCE
@@ -75,7 +75,7 @@ export default function RotationPage() {
         </div>
 
         <div className="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-8">
-          
+
           {/* Form Card */}
           <div className="rounded-[32px] bg-[#fff8eb] p-7 sm:p-9 shadow-[0_15px_45px_rgba(25,53,43,.05)] border border-[#19352b]/10">
             <h2 className="font-heading text-2xl font-bold tracking-[-.03em] text-[#19352b] mb-6">
@@ -86,8 +86,8 @@ export default function RotationPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-[#19352b]/50 mb-2">Previous Crop</label>
-                  <select 
-                    name="previous_crop" 
+                  <select
+                    name="previous_crop"
                     value={formData.previous_crop}
                     onChange={handleChange}
                     className="field-control"
@@ -103,11 +103,11 @@ export default function RotationPage() {
                     <option>None</option>
                   </select>
                 </div>
-                
+
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-[#19352b]/50 mb-2">Region</label>
-                  <select 
-                    name="region" 
+                  <select
+                    name="region"
                     value={formData.region}
                     onChange={handleChange}
                     className="field-control"
@@ -123,9 +123,9 @@ export default function RotationPage() {
 
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-[#19352b]/50 mb-2">Predicted Season Rainfall (mm)</label>
-                <input 
-                  type="number" 
-                  name="rainfall" 
+                <input
+                  type="number"
+                  name="rainfall"
                   value={formData.rainfall}
                   onChange={handleChange}
                   className="field-control"
@@ -152,8 +152,8 @@ export default function RotationPage() {
                 </div>
               </div>
 
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 disabled={loading}
                 className="w-full flex items-center justify-center gap-2 rounded-full bg-[#b77731] hover:bg-[#a36829] text-[#fff8eb] font-bold py-3.5 text-xs transition-transform duration-200 hover:-translate-y-0.5 cursor-pointer shadow-md disabled:opacity-50"
               >
@@ -199,22 +199,20 @@ export default function RotationPage() {
                   <p className="text-xs text-white/70 mb-6 leading-relaxed">
                     {result.soil_health_context}
                   </p>
-                  
+
                   <div className="space-y-3">
                     {result.recommendations?.map((rec: any, i: number) => (
-                      <div 
-                        key={i} 
-                        className={`p-4 rounded-2xl border transition-all ${
-                          i === 0 
-                            ? 'bg-[#fff8eb]/15 border-[#f6c86e]/40 shadow-xs' 
+                      <div
+                        key={i}
+                        className={`p-4 rounded-2xl border transition-all ${i === 0
+                            ? 'bg-[#fff8eb]/15 border-[#f6c86e]/40 shadow-xs'
                             : 'bg-white/05 border-white/10'
-                        }`}
+                          }`}
                       >
                         <div className="flex justify-between items-center">
                           <div className="flex items-center gap-3">
-                            <span className={`flex items-center justify-center size-8 rounded-full text-xs font-bold ${
-                              i === 0 ? 'bg-[#f6c86e] text-[#19352b]' : 'bg-white/15 text-white/70'
-                            }`}>
+                            <span className={`flex items-center justify-center size-8 rounded-full text-xs font-bold ${i === 0 ? 'bg-[#f6c86e] text-[#19352b]' : 'bg-white/15 text-white/70'
+                              }`}>
                               #{i + 1}
                             </span>
                             <span className="font-heading text-lg font-bold text-white">

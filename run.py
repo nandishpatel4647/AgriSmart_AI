@@ -128,7 +128,7 @@ def main():
         backend_proc = subprocess.Popen(backend_cmd, cwd=str(PROJECT_ROOT))
         
         # Wait for backend to be ready
-        if wait_for_http("http://127.0.0.1:8000/api/health", timeout=15.0):
+        if wait_for_http("http://127.0.0.1:8000/api/health", timeout=60.0):
             print("  [OK] Backend healthy and ready at http://127.0.0.1:8000")
         else:
             print("  [ERROR] Backend failed to start within 15 seconds.")

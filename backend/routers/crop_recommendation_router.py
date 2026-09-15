@@ -121,7 +121,7 @@ async def recommend_crop(req: CropRecommendationRequest):
         ph_min, ph_max = c["ph_range"]
         if req.ph < ph_min or req.ph > ph_max:
             diff = min(abs(req.ph - ph_min), abs(req.ph - ph_max))
-            score -= diff * 15.0
+            score -= diff * 25.0
             reasons.append(f"pH {req.ph} is outside ideal range ({ph_min}-{ph_max})")
         else:
             reasons.append(f"pH {req.ph} is optimal ({ph_min}-{ph_max})")
@@ -129,7 +129,8 @@ async def recommend_crop(req: CropRecommendationRequest):
         # Temperature match
         t_min, t_max = c["temp_range"]
         if req.temperature_c < t_min or req.temperature_c > t_max:
-            score -= 20.0
+            diff = min(abs(req.temperature_c - t_min), abs(req.temperature_c - t_max))
+            score -= (25.0 + diff * 3.0)
             reasons.append(f"Temp {req.temperature_c}°C outside preferred range ({t_min}-{t_max}°C)")
         else:
             reasons.append(f"Temperature {req.temperature_c}°C is suitable")
@@ -138,19 +139,23 @@ async def recommend_crop(req: CropRecommendationRequest):
         if req.season in c["suitable_seasons"]:
             reasons.append(f"Well-suited for {req.season} season")
         else:
-            score -= 25.0
+            score -= 40.0
             reasons.append(f"Suboptimal for {req.season} season")
             
         # Soil type match
         if req.soil_type in c["soil_types"]:
             reasons.append(f"{req.soil_type} soil matches crop preference")
         else:
-            score -= 15.0
+            score -= 30.0
+            reasons.append(f"{req.soil_type} soil is not preferred")
             
         # Water availability match
         if req.water_availability == "Low" and c["water_req"] == "High":
-            score -= 30.0
-            reasons.append("High water demand conflicts with low water availability")
+            score -= 50.0
+            reasons.append("Critical: High water demand lacks availability")
+        elif req.water_availability == "Medium" and c["water_req"] == "High":
+            score -= 20.0
+            reasons.append("Medium water availability limits high requirement")
             
         # Previous crop bonus (Nitrogen fixation from legumes)
         if req.previous_crop and "legume" in req.previous_crop.lower() and c["category"] in ["Cereals", "Vegetables"]:

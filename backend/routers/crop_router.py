@@ -26,7 +26,7 @@ class CropRequest(BaseModel):
     rainfall: float
     region: str
 
-@router.post("/recommend_crop")
+@router.post("/predict_rotation")
 def recommend_crop(req: CropRequest):
     if not rf_model:
         raise HTTPException(500, "Crop Recommendation ML Model is not available.")
