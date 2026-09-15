@@ -32,5 +32,5 @@ RUN python scripts/ensure_weights.py
 # Expose default port
 EXPOSE 8000
 
-# Start production server using clean port resolution
-CMD ["python", "run.py"]
+# Start production standalone FastAPI server
+CMD ["python", "start_backend.py"]
