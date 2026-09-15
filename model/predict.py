@@ -25,7 +25,9 @@ import torch.nn as nn
 
 # Paths
 PROJECT_ROOT = Path(__file__).parent.parent
-WEIGHTS_PATH = PROJECT_ROOT / "weights" / "agrismart_convnext.pt"
+MODEL_BEST_WEIGHTS = PROJECT_ROOT / "model" / "weights" / "best_model.pth"
+ROOT_CONVNEXT_WEIGHTS = PROJECT_ROOT / "weights" / "agrismart_convnext.pt"
+WEIGHTS_PATH = MODEL_BEST_WEIGHTS if MODEL_BEST_WEIGHTS.exists() else ROOT_CONVNEXT_WEIGHTS
 CLASS_MAPPING_PATH = PROJECT_ROOT / "weights" / "class_mapping.json"
 
 # Centroids & OOD configuration
@@ -406,9 +408,36 @@ def _load_model(weights_path: str = None, device: str = None):
     except ImportError:
         pass
 
-    # Load full ConvNeXt model object
-    model = torch.load(weights_path, map_location=dev, weights_only=False)
+    # Load model (supporting full model object or state_dict checkpoint)
+    loaded = torch.load(weights_path, map_location=dev, weights_only=False)
+    if isinstance(loaded, dict) and "model_state_dict" in loaded:
+        num_classes = loaded.get("num_classes", 38)
+        try:
+            from model.train import create_model
+        except ImportError:
+            from train import create_model
+        model = create_model(num_classes, pretrained=False)
+        model.load_state_dict(loaded["model_state_dict"])
+    elif isinstance(loaded, dict) and "state_dict" in loaded:
+        num_classes = loaded.get("num_classes", 38)
+        try:
+            from model.train import create_model
+        except ImportError:
+            from train import create_model
+        model = create_model(num_classes, pretrained=False)
+        model.load_state_dict(loaded["state_dict"])
+    else:
+        model = loaded
+
+    model = model.to(dev)
     model.eval()
+
+    # Optimize CPU execution threads
+    if dev.type == "cpu":
+        try:
+            torch.set_num_threads(max(1, (os.cpu_count() or 4)))
+        except Exception:
+            pass
 
     with open(CLASS_MAPPING_PATH) as f:
         class_mapping = json.load(f)
@@ -423,6 +452,14 @@ def _load_model(weights_path: str = None, device: str = None):
         transforms.Normalize(mean, std),
     ])
     
+    # Warm up model to allocate PyTorch execution graph buffers ahead of first request
+    try:
+        with torch.inference_mode():
+            dummy_input = torch.zeros((1, 3, 256, 256), device=dev)
+            model(dummy_input)
+    except Exception:
+        pass
+
     # Cache
     _model_cache["model"] = model
     _model_cache["checkpoint"] = checkpoint
@@ -433,7 +470,7 @@ def _load_model(weights_path: str = None, device: str = None):
     centroids = None
     if CENTROIDS_PATH.exists():
         try:
-            c_data = torch.load(CENTROIDS_PATH, map_location=dev)
+            c_data = torch.load(CENTROIDS_PATH, map_location=dev, weights_only=False)
             centroids = c_data.get("class_centroids")
         except Exception as e:
             print(f"[WARN] Could not load class centroids: {e}")
@@ -463,24 +500,41 @@ def predict(image_path: str, weights_path: str = None, top_k: int = 3) -> dict:
     input_tensor = transform(image).unsqueeze(0).to(device)
     
     # Predict & Extract 768-dim feature embedding representation
-    with torch.no_grad():
+    with torch.inference_mode():
         # 1. Full forward pass for classification
         output = model(input_tensor)
         probs = torch.softmax(output, dim=1)[0]
         
         # 2. Extract features for OOD detection (Cosine Similarity)
-        feat_4d = model.model.features(input_tensor)
-        feat_pooled = model.model.avgpool(feat_4d)
-        feat_flat = torch.flatten(feat_pooled, 1)
-        feat_norm = feat_flat / (torch.norm(feat_flat, p=2, dim=1, keepdim=True) + 1e-8)
-    
+        try:
+            if hasattr(model, "features"):
+                feat_4d = model.features(input_tensor)
+            elif hasattr(model, "model") and hasattr(model.model, "features"):
+                feat_4d = model.model.features(input_tensor)
+            else:
+                feat_4d = None
+
+            if feat_4d is not None:
+                if hasattr(model, "avgpool"):
+                    feat_pooled = model.avgpool(feat_4d)
+                elif hasattr(model, "model") and hasattr(model.model, "avgpool"):
+                    feat_pooled = model.model.avgpool(feat_4d)
+                else:
+                    feat_pooled = torch.nn.functional.adaptive_avg_pool2d(feat_4d, (1, 1))
+                feat_flat = torch.flatten(feat_pooled, 1)
+                feat_norm = feat_flat / (torch.norm(feat_flat, p=2, dim=1, keepdim=True) + 1e-8)
+            else:
+                feat_norm = None
+        except Exception:
+            feat_norm = None
+
     # Free Energy Score: E(x) = -T * logsumexp(z / T)
     energy = float((-1.0 * torch.logsumexp(output, dim=1)).item())
     
     # Nearest Class Centroid Cosine Similarity
     centroids = _model_cache.get("centroids")
     max_sim = 1.0
-    if centroids is not None and centroids.shape[0] == len(idx_to_class) and centroids.shape[1] == feat_norm.shape[1]:
+    if centroids is not None and feat_norm is not None and centroids.shape[0] == len(idx_to_class) and centroids.shape[1] == feat_norm.shape[1]:
         sims = torch.mv(centroids.to(device), feat_norm.squeeze(0))
         max_sim = float(sims.max().item())
         

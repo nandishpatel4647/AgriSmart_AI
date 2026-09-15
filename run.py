@@ -31,7 +31,7 @@ def is_port_in_use(port: int, host: str = "127.0.0.1") -> bool:
         return s.connect_ex((host, port)) == 0
 
 
-def wait_for_http(url: str, timeout: float = 30.0, step: float = 0.5) -> bool:
+def wait_for_http(url: str, timeout: float = 30.0, step: float = 0.1) -> bool:
     """Poll an HTTP URL until it returns 200 OK or timeout expires."""
     start = time.time()
     while time.time() - start < timeout:

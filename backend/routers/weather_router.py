@@ -77,6 +77,52 @@ async def search_location(query: str = Query(..., min_length=2)):
         return {"success": False, "results": [], "error": str(e)}
 
 
+@router.get("/weather/reverse")
+async def reverse_geocode(lat: float = Query(...), lon: float = Query(...)):
+    """Reverse geocode latitude & longitude to City Name."""
+    try:
+        url = f"https://api.bigdatacloud.net/data/reverse-geocode-client?latitude={lat}&longitude={lon}&localityLanguage=en"
+        response = requests.get(url, timeout=5)
+        if response.ok:
+            data = response.json()
+            city = data.get("city") or data.get("locality") or "Live Location"
+            state = data.get("principalSubdivision") or ""
+            country = data.get("countryName") or ""
+            display_name = f"{city}{f', {state}' if state else ''}{f' ({country})' if country else ''}"
+            return {
+                "success": True,
+                "city": city,
+                "state": state,
+                "country": country,
+                "display_name": display_name
+            }
+    except Exception:
+        pass
+
+    try:
+        url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}"
+        headers = {"User-Agent": "AgriSmartAI/1.0"}
+        response = requests.get(url, headers=headers, timeout=5)
+        if response.ok:
+            data = response.json()
+            addr = data.get("address", {})
+            city = addr.get("city") or addr.get("town") or addr.get("village") or addr.get("state_district") or "Live Location"
+            state = addr.get("state") or ""
+            country = addr.get("country") or ""
+            display_name = f"{city}{f', {state}' if state else ''}{f' ({country})' if country else ''}"
+            return {
+                "success": True,
+                "city": city,
+                "state": state,
+                "country": country,
+                "display_name": display_name
+            }
+    except Exception:
+        pass
+
+    return {"success": True, "city": "Live Field Location", "display_name": f"{lat:.4f}° N, {lon:.4f}° E"}
+
+
 def _assess_disease_risk(current_weather: dict, daily_weather: dict = None) -> list:
     """Generate actionable weather-disease risk alerts."""
     alerts = []

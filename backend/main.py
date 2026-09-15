@@ -36,25 +36,31 @@ except ImportError:
     )
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Preload model on startup for fast inference and start cron jobs."""
-    print("[INFO] Loading ML model...")
+import asyncio
+
+
+def _preload_model_background():
     try:
         from predict import _load_model
         _load_model()
-        print("[INFO] Model loaded successfully")
+        print("[INFO] ML Model loaded successfully in background thread")
     except Exception as e:
         print(f"[WARN] Could not preload model: {e}")
-        print("[INFO] Model will be loaded on first prediction request")
-        
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Preload model in background for instant startup and fast inference."""
+    print("[INFO] Preloading ML model in background thread...")
+    asyncio.create_task(asyncio.to_thread(_preload_model_background))
+
     print("[INFO] Starting NDVI background checks...")
     try:
         from ndvi_service import start_cron
         start_cron()
     except Exception as e:
         print(f"[WARN] Failed to start NDVI cron: {e}")
-        
+
     yield
     print("[INFO] Shutting down AgriSmart AI backend")
 

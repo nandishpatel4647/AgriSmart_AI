@@ -1,9 +1,6 @@
 import type { AssistantResponse, DetectionResponse, InsightInput, InsightResponse, IoTReading, WeatherResponse } from "./types";
 
 function getDirectBackend(): string {
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
-  }
   if (typeof window !== "undefined") {
     const host = window.location.hostname || "localhost";
     return `http://${host}:8000`;
