@@ -5,6 +5,30 @@ import { Check, Compass, Info, Leaf, LoaderCircle, Mic, MicOff, MapPin, Sparkles
 import { apiGet, apiPost } from "../lib/api";
 import type { WeatherResponse } from "../lib/types";
 
+function formatFertilizerBags(cropName: string, npk: string, plain?: string) {
+  if (plain && !plain.includes("kg/ha")) return plain;
+  const name = cropName.toLowerCase();
+  if (name.includes("tomato")) return "2.5 bags Urea, 1.3 bags DAP, 1.0 bag Potash per acre";
+  if (name.includes("corn") || name.includes("maize")) return "2.5 bags Urea, 1.3 bags DAP, 0.7 bags Potash per acre";
+  if (name.includes("potato")) return "3.1 bags Urea, 1.7 bags DAP, 1.6 bags Potash per acre";
+  if (name.includes("chickpea") || name.includes("gram")) return "0.5 bags Urea, 0.9 bags DAP (Fixes own soil nitrogen)";
+  if (name.includes("cotton")) return "2.1 bags Urea, 1.1 bags DAP, 0.8 bags Potash per acre";
+  if (name.includes("rice") || name.includes("paddy")) return "2.1 bags Urea, 0.9 bags DAP, 0.7 bags Potash per acre";
+  return "2.5 bags Urea, 1.2 bags DAP per acre";
+}
+
+function formatWateringSchedule(cropName: string, plain?: string) {
+  if (plain && plain !== "Regular watering schedule" && plain !== "Regular irrigation") return plain;
+  const name = cropName.toLowerCase();
+  if (name.includes("tomato")) return "Irrigate once every 4 to 5 days";
+  if (name.includes("corn") || name.includes("maize")) return "Irrigate once every 6 to 8 days";
+  if (name.includes("potato")) return "Irrigate once every 5 to 7 days";
+  if (name.includes("chickpea") || name.includes("gram")) return "Light irrigation (1 - 2 times per crop cycle)";
+  if (name.includes("cotton")) return "Irrigate once every 8 to 10 days";
+  if (name.includes("rice") || name.includes("paddy")) return "Maintain 2-5 cm standing water in field";
+  return "Irrigate once every 5 to 7 days";
+}
+
 interface CropRecResult {
   crop: string;
   vernacular_name?: string;
@@ -480,7 +504,7 @@ export default function CropRecommendationPage() {
                         🧪 Fertilizer Advice (Bags / Acre)
                       </span>
                       <strong className="text-sm font-extrabold text-[#19352b] leading-snug block">
-                        {rec.plain_fertilizer || rec.npk_ratio}
+                        {formatFertilizerBags(rec.crop, rec.npk_ratio, rec.plain_fertilizer)}
                       </strong>
                     </div>
 
@@ -490,7 +514,7 @@ export default function CropRecommendationPage() {
                         💧 Irrigation Frequency
                       </span>
                       <strong className="text-sm font-extrabold text-[#19352b] leading-snug block">
-                        {rec.plain_watering || "Regular watering schedule"}
+                        {formatWateringSchedule(rec.crop, rec.plain_watering)}
                       </strong>
                     </div>
                   </div>
