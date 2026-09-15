@@ -278,7 +278,7 @@ export default function AssistantPage() {
                 </span>
                 <div>
                   <span className="text-xs font-black uppercase tracking-widest text-[#f6c86e]">
-                    SECTION 5 AI ASSISTANT RESPONSE
+                    AI FARMER ASSISTANT ADVISORY
                   </span>
                   <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mt-0.5">
                     Grounded Advisory Output

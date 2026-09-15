@@ -297,10 +297,10 @@ export default function WeatherPage() {
             </div>
           </div>
 
-          {/* SECTION 5 FARMER ACTION CARD */}
+          {/* FARMER SMART IRRIGATION ADVISORY CARD */}
           <div className="mt-8 rounded-3xl bg-white/10 p-6 border-2 border-white/15">
             <div className="flex items-center gap-3 text-[#f6c86e] font-black text-sm uppercase tracking-wider">
-              <Sparkles size={20} /> SECTION 5 SMART IRRIGATION ADVISORY
+              <Sparkles size={20} /> SMART IRRIGATION ADVISORY
             </div>
             <p className="mt-2 text-lg sm:text-xl font-extrabold text-white leading-snug">
               {(forecast[0]?.rain_probability ?? 18) > 30 

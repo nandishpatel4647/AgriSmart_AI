@@ -85,8 +85,8 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* SECTION 5 SAMPLE SCENARIO CARDS (Prominent Hackathon Alignment) */}
-        <section className="mt-10" data-testid="section5-sample-scenarios">
+        {/* FARMER DECISION MATRIX (Functionalities Overview) */}
+        <section className="mt-10" data-testid="functionalities-matrix">
           <div className="rounded-[32px] border-3 border-[#b77731] bg-[#fff8eb] p-7 sm:p-9 shadow-lg">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[#19352b]/10 pb-5">
               <div className="flex items-center gap-3">
@@ -95,7 +95,7 @@ export default function DashboardPage() {
                 </span>
                 <div>
                   <h2 className="text-xl sm:text-2xl font-black text-[#19352b]">
-                    Section 5 — Farmer Decision Output Matrix
+                    Farmer Action & Decision Matrix
                   </h2>
                   <p className="text-sm font-semibold text-[#19352b]/70">
                     Live actionable farmer guidance combining disease detection, weather, irrigation, and AI assistant
@@ -103,67 +103,67 @@ export default function DashboardPage() {
                 </div>
               </div>
               <span className="rounded-full bg-[#19352b] px-4 py-1.5 text-xs font-extrabold text-[#f6c86e]">
-                HACKATHON VERIFIED
+                SYSTEM ACTIVE
               </span>
             </div>
 
             <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
               
-              {/* Output 1: Disease Detection */}
+              {/* Feature 1: Disease Detection */}
               <div className="rounded-2xl border-2 border-[#19352b]/15 bg-white p-5 shadow-sm">
                 <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-100 px-3 py-1 text-xs font-black text-amber-900">
-                  <ShieldAlert size={14} /> Core: Disease Detection
+                  <ShieldAlert size={14} /> Crop Disease Detection
                 </span>
                 <h3 className="mt-3 text-lg font-black text-[#19352b]">
-                  Early Blight (Tomato)
+                  Leaf Image Diagnostics
                 </h3>
                 <p className="mt-1 text-sm font-bold text-[#b77731]">
-                  Confidence: 91.0%
+                  33 Diagnostic Classes
                 </p>
                 <div className="mt-3 rounded-xl bg-[#f5f1e8] p-3 text-xs font-bold leading-relaxed text-[#19352b]">
-                  <strong>Precaution:</strong> Remove affected bottom leaves immediately and avoid overhead watering to stop spore spread.
+                  <strong>Action:</strong> Scans crop leaf photos and provides immediate actionable precautionary treatment guidance.
                 </div>
               </div>
 
-              {/* Output 2: Smart Irrigation */}
+              {/* Feature 2: Smart Irrigation */}
               <div className="rounded-2xl border-2 border-[#19352b]/15 bg-white p-5 shadow-sm">
                 <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-100 px-3 py-1 text-xs font-black text-blue-900">
-                  <Droplets size={14} /> Bonus B: Smart Irrigation
+                  <Droplets size={14} /> Smart Irrigation
                 </span>
                 <h3 className="mt-3 text-lg font-black text-[#19352b]">
-                  Delay Irrigation
+                  Water Management
                 </h3>
                 <p className="mt-1 text-sm font-bold text-blue-700">
-                  Soil Moisture: 31% (Loamy)
+                  Soil & Weather Integration
                 </p>
                 <div className="mt-3 rounded-xl bg-[#f5f1e8] p-3 text-xs font-bold leading-relaxed text-[#19352b]">
-                  <strong>Action:</strong> Rainfall expected in next 24 hours. Hold off on manual watering to conserve resources.
+                  <strong>Action:</strong> Advises when to irrigate or hold off based on soil moisture and 24-hour rain forecasts.
                 </div>
               </div>
 
-              {/* Output 3: Sustainability Score */}
+              {/* Feature 3: Sustainability Score */}
               <div className="rounded-2xl border-2 border-[#19352b]/15 bg-white p-5 shadow-sm">
                 <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-900">
-                  <Sprout size={14} /> Bonus D: Sustainability
+                  <Sprout size={14} /> Sustainability Score
                 </span>
                 <h3 className="mt-3 text-lg font-black text-[#19352b]">
-                  Eco Score: 88 / 100
+                  Resource Efficiency
                 </h3>
                 <p className="mt-1 text-sm font-bold text-emerald-700">
-                  Water Saved: ~30%
+                  Verifiable Formula
                 </p>
                 <div className="mt-3 rounded-xl bg-[#f5f1e8] p-3 text-xs font-bold leading-relaxed text-[#19352b]">
-                  <strong>Impact:</strong> Estimated 30% reduction in unnecessary water use this week through weather integration.
+                  <strong>Impact:</strong> Computes eco-efficiency score and suggests water and fertilizer reduction methods.
                 </div>
               </div>
 
-              {/* Output 4: AI Assistant */}
+              {/* Feature 4: AI Assistant */}
               <div className="rounded-2xl border-2 border-[#19352b]/15 bg-white p-5 shadow-sm">
                 <span className="inline-flex items-center gap-1.5 rounded-lg bg-purple-100 px-3 py-1 text-xs font-black text-purple-900">
-                  <MessageCircle size={14} /> Bonus E: AI Assistant
+                  <MessageCircle size={14} /> Multilingual AI Assistant
                 </span>
                 <h3 className="mt-3 text-lg font-black text-[#19352b]">
-                  Multilingual Voice
+                  Voice & Audio Q&A
                 </h3>
                 <p className="mt-1 text-sm font-bold text-purple-700">
                   English · हिन्दी · ગુજરાતી
