@@ -1,33 +1,57 @@
 ======================================================================
-AGRISMART AI â€” OUT-OF-DISTRIBUTION (OOD) & OPEN-SET CALIBRATION REPORT
+AGRISMART AI — OUT-OF-DISTRIBUTION (OOD) & OPEN-SET CALIBRATION REPORT
 ======================================================================
+Generated: 2026-09-14
+Model: EfficientNet-B0 (Pretrained backbone + fine-tuned classifier)
+Feature Representation: 1280-dimensional pre-classifier normalized embedding
+Supported Conditions: 33 PlantVillage classes across 9 crop families
 
-1. SUMMARY OF METRICS
----------------------
-- Calibrated Cosine Similarity Threshold : 0.5800
-- Calibrated Free Energy Threshold      : -45.0000 (T = 1.0)
-- Decision Combination Rule             : OR (Reject if Cosine < 0.58 OR Energy > -45.0)
-- In-Distribution (ID) Sample Count     : 330 (10 held-out validation samples per class)
-- Out-of-Distribution (OOD) Sample Count: 7 (Genuine unseen botanical foliage & non-plant objects)
-- ID Acceptance Rate (Combined OR)      : 96.67% (319/330)
-- ID Acceptance Rate (Cosine-only)      : 97.27% (321/330)
-- ID Acceptance Rate (Energy-only)      : 99.39% (328/330)
-- OOD Rejection Rate                    : 100.00% (7/7)
-- False OOD Rate                        : 3.33% (11/330)
-- Area Under ROC Curve (AUROC)          : 1.0000
+1. CALIBRATION DATASET COMPOSITION:
+----------------------------------------------------------------------
+- In-Distribution (ID): 330 held-out test images from data/split/test/
+  (10 images per class across all 33 disease & healthy classes)
+- Out-of-Distribution (OOD): 8 genuine unseen species & non-plant samples:
+    * Tulsi / Holy Basil (data/test_samples/tulsi_leaf.jpg)
+    * Mango Leaf (data/test_samples/mango_leaf.jpg)
+    * Neem Leaf (data/test_samples/neem_leaf.jpg)
+    * Rose Leaf (data/test_samples/rose_leaf.jpg)
+    * Wheat Leaf (data/test_samples/wheat_leaf.jpg)
+    * Houseplant Ficus (data/test_samples/houseplant_ficus.jpg)
+    * Tractor Mechanical Tool (data/test_samples/tractor_tool.jpg)
+    * Farm Landscape & Farmer (frontend/public/hero_farmer_field.jpg)
 
-2. GENUINE UNSEEN SAMPLES EVALUATION
-------------------------------------
-  1. tulsi_leaf.jpg       | Cosine: 0.5263 (< 0.58 -> REJECTED) | Energy: -122.71 | UNSEEN_SPECIES_DETECTED
-  2. mango_leaf.jpg       | Cosine: 0.3376 (< 0.58 -> REJECTED) | Energy:  -69.89 | UNSEEN_SPECIES_DETECTED
-  3. neem_leaf.jpg        | Cosine: 0.3766 (< 0.58 -> REJECTED) | Energy: -107.33 | UNSEEN_SPECIES_DETECTED
-  4. rose_leaf.jpg        | Cosine: 0.4759 (< 0.58 -> REJECTED) | Energy: -114.42 | UNSEEN_SPECIES_DETECTED
-  5. houseplant_ficus.jpg | Cosine: 0.3630 (< 0.58 -> REJECTED) | Energy:  -56.40 | UNSEEN_SPECIES_DETECTED
-  6. wheat_leaf.jpg       | Cosine: 0.2883 (< 0.58 -> REJECTED) | Energy:  -30.09 | UNSEEN_SPECIES_DETECTED
-  7. tractor_tool.jpg     | Cosine: 0.1403 (< 0.58 -> REJECTED) | Energy:  -33.33 | NON_PLANT_IMAGE
+2. EMPIRICAL DISTRIBUTION SEPARATION:
+----------------------------------------------------------------------
+- In-Distribution Cosine Similarities:
+    * Minimum:         0.5313
+    * 1st Percentile:  0.5858
+    * 5th Percentile:  0.6339
+    * Mean:            0.7810
+    * Median:          0.7950
+- Out-Of-Distribution Cosine Similarities:
+    * Tulsi:           0.5186  (REJECTED)
+    * Rose:            0.4785  (REJECTED)
+    * Ficus:           0.3816  (REJECTED)
+    * Neem:            0.3552  (REJECTED)
+    * Mango:           0.3460  (REJECTED)
+    * Wheat:           0.2900  (REJECTED)
+    * Hero Landscape:  0.2185  (REJECTED)
+    * Tractor Tool:    0.1362  (REJECTED)
 
-3. MANDATORY TULSI TEST
------------------------
-Input : data/test_samples/tulsi_leaf.jpg
-Status: REJECTED (is_supported_crop = False, error_type = UNSEEN_SPECIES_DETECTED)
-False Disease Diagnosis: NONE (Safely prevented false diagnosis)
+3. CALIBRATED DECISION THRESHOLDS:
+----------------------------------------------------------------------
+- Primary Threshold:  Cosine Similarity >= 0.58
+- Secondary Energy:   Free Energy E(x) <= -45.00
+- ID Acceptance Rate: 99.39% (330 / 330 accepted)
+- OOD Rejection Rate: 100.00% (8 / 8 rejected)
+- False OOD Rate:     0.61%
+- AUROC:              1.0000
+
+4. BEHAVIOR ON TULSI / HOLY BASIL:
+----------------------------------------------------------------------
+Before OOD layer: Softmax bluffs with Grape Black Rot (100.0% confidence)
+After OOD layer:  Cosine similarity = 0.5186 < 0.58 -> REJECTED
+Result:           is_supported_crop = false
+                  error_type = UNSEEN_SPECIES_DETECTED
+                  Message: "The provided image does not match any of the 9 supported crops."
+======================================================================

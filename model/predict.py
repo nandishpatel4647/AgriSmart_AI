@@ -45,8 +45,8 @@ SUPPORTED_CROPS = [
     "Strawberry",
     "Tomato",
 ]
-OOD_COSINE_THRESHOLD = 0.85 # Fallback threshold
-OOD_ENERGY_THRESHOLD = 100000.0 # Disabled as it overlaps with ID
+OOD_COSINE_THRESHOLD = 0.945 # ConvNeXt 768-dim empirical data-calibrated threshold (gap: max OOD 0.9348 vs min ID 0.9611)
+OOD_ENERGY_THRESHOLD = 100000.0 # Disabled as primary gate is cosine similarity
 DISEASE_GUIDANCE = {
     # Tomato diseases
     "Tomato___Bacterial_spot": {
@@ -513,7 +513,7 @@ def predict(image_path: str, weights_path: str = None, top_k: int = 3) -> dict:
     if max_sim < required_threshold or energy > OOD_ENERGY_THRESHOLD:
         is_ood = True
         # Do not use energy alone to classify an image as non-plant
-        if max_sim < 0.20:
+        if max_sim < 0.905:
             error_type = "NON_PLANT_IMAGE"
         else:
             error_type = "UNSEEN_SPECIES_DETECTED"
@@ -595,7 +595,7 @@ def predict(image_path: str, weights_path: str = None, top_k: int = 3) -> dict:
         "energy_score": round(energy, 2),
         "class_label": predicted_class,
         "confidence": confidence,
-        "crop": crop,
+        "crop": clean_crop,
         "leaf_name": leaf_name,
         "leaf_display_name": leaf_display_name,
         "disease": disease,
