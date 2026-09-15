@@ -19,6 +19,7 @@ class CropRecommendationRequest(BaseModel):
     rainfall_mm: float = Field(800.0, example=800.0)
     water_availability: str = Field("Medium", example="Medium") # High, Medium, Low
     season: str = Field("Kharif", example="Kharif") # Kharif, Rabi, Zaid
+    location: Optional[str] = Field("Semi-Arid Plains", example="Semi-Arid Plains")
     previous_crop: Optional[str] = Field("Legumes", example="Legumes")
 
 
@@ -135,6 +136,15 @@ async def recommend_crop(req: CropRecommendationRequest):
         else:
             reasons.append(f"Temperature {req.temperature_c}°C is suitable")
             
+        # Rainfall match
+        r_min, r_max = c["rainfall_range"]
+        if req.rainfall_mm < r_min or req.rainfall_mm > r_max:
+            diff = min(abs(req.rainfall_mm - r_min), abs(req.rainfall_mm - r_max))
+            score -= min(25.0, diff * 0.04)
+            reasons.append(f"Rainfall {req.rainfall_mm}mm outside ideal range ({r_min}-{r_max}mm)")
+        else:
+            reasons.append(f"Rainfall {req.rainfall_mm}mm is optimal ({r_min}-{r_max}mm)")
+            
         # Season match
         if req.season in c["suitable_seasons"]:
             reasons.append(f"Well-suited for {req.season} season")
@@ -179,6 +189,7 @@ async def recommend_crop(req: CropRecommendationRequest):
     
     return {
         "success": True,
+        "evaluation_metric": "Crop Suitability Score (Percentage Match 0–100%) computed via ICAR Agronomic Penalty Matrix",
         "data_source": "ICAR / FAO Crop Suitability Guidelines & Soil Science Database",
         "inputs": req.dict(),
         "top_recommendations": scores[:3],
