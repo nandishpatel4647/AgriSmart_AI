@@ -249,35 +249,78 @@ class InsightRequest(BaseModel):
 async def get_insights(payload: InsightRequest):
     """
     Compute explainable irrigation guidance and sustainability score.
-    Fully compatible with agricultural decision flow.
+    Fully considers crop family and growth stage parameters.
     """
+    # 1. Run FAO-56 rule computation
+    irr_req = IrrigationRequest(
+        soil_moisture=float(payload.soil_moisture),
+        crop_type=payload.crop,
+        growth_stage=payload.growth_stage.lower(),
+        temperature=payload.temperature,
+        humidity=60.0,
+        rain_probability=float(payload.rain_probability),
+        rain_amount_forecast=12.0 if payload.rain_probability > 50 else 0.0
+    )
+    fao_res = _compute_irrigation(irr_req)
+
     rain_prob = payload.rain_probability
     moisture = payload.soil_moisture
-    if rain_prob >= 55:
+    crop_name = payload.crop
+    stage_name = payload.growth_stage.capitalize()
+    
+    stage_info = fao_res.get("growth_stage_info", {})
+    sensitivity = stage_info.get("sensitivity", "moderate")
+    multiplier = stage_info.get("water_multiplier", 1.0)
+    
+    rec_type = fao_res.get("recommendation", "no_irrigation")
+    amount_mm = fao_res.get("amount_mm", 0)
+
+    if rec_type == "stop":
+        irrigation_status = "stop"
+        title = f"Stop Watering — Soil Waterlogged ({moisture}%)"
+        reason = f"Soil moisture ({moisture}%) exceeds safe limit for {crop_name} at {stage_name} stage. High risk of root rot."
+    elif rec_type == "delay":
         irrigation_status = "hold"
-        title = "Hold irrigation"
-        reason = f"Rain probability is {rain_prob}% — let the soil do the work first."
-    elif moisture <= 28:
+        title = f"Hold Irrigation — Rain Expected ({rain_prob}%)"
+        reason = f"24h Rain forecast is {rain_prob}%. Natural rainfall will irrigate your {crop_name} crop."
+    elif rec_type in ["irrigate_urgent", "irrigate"]:
         irrigation_status = "water_soon"
-        title = "Water within 12 hours"
-        reason = f"Soil moisture is {moisture}%, below the 30% action threshold."
+        title = f"Irrigate {crop_name} ({amount_mm} mm Needed)"
+        reason = f"{crop_name} is in {stage_name} stage (sensitivity: {sensitivity}). Moisture ({moisture}%) is below optimal limit ({fao_res['thresholds_used']['optimal_low']}%)."
     else:
         irrigation_status = "monitor"
-        title = "Monitor moisture"
-        reason = f"Soil moisture is {moisture}% and rain probability is {rain_prob}%."
+        title = f"Optimal Soil Moisture for {crop_name}"
+        reason = f"Soil moisture ({moisture}%) is within optimal range ({fao_res['thresholds_used']['optimal_low']}%–{fao_res['thresholds_used']['optimal_high']}%) for {stage_name} {crop_name}."
 
     score = max(0, min(100, round(45 + (moisture * 0.25) + (25 if not payload.disease_detected else 8) - (rain_prob * 0.08))))
+    
     if irrigation_status == "hold":
-        suggestions = ["Keep irrigation paused until the next forecast check.", "Use drip lines to reduce evaporation."]
+        suggestions = [
+          f"Keep irrigation paused until rain forecast completes for {crop_name}.",
+          "Use drip irrigation lines to avoid leaf dampness."
+        ]
     elif irrigation_status == "water_soon":
-        suggestions = ["Irrigate at dawn for lower evaporation.", "Re-check moisture after watering instead of scheduling a second cycle."]
+        suggestions = [
+          f"Apply ~{amount_mm} mm (~{round(amount_mm * 10)} L/m²) early in the morning.",
+          f"{stage_name} stage has {sensitivity} root sensitivity — irrigate at soil root zone."
+        ]
     else:
-        suggestions = ["Check moisture at root depth tomorrow.", "Keep foliage dry and inspect new growth twice this week."]
+        suggestions = [
+          f"Re-check soil moisture at root depth for {crop_name} tomorrow.",
+          "Keep foliage dry to prevent leaf spot fungal infections."
+        ]
         
     if payload.language == "hi":
         title_map = {"Hold irrigation": "सिंचाई रोकें", "Water within 12 hours": "12 घंटे में पानी दें", "Monitor moisture": "नमी पर नज़र रखें"}
         title = title_map.get(title, title)
         suggestions = ["जड़ों के पास नमी जाँचें और पत्तियों को सूखा रखें।", "बारिश की संभावना होने पर अतिरिक्त पानी न दें।"]
+
+    activity_log = [
+        f"Crop selected: {crop_name} ({stage_name} stage, {multiplier}x water factor)",
+        f"Soil Moisture checked: {moisture}% vs FAO optimal target ({fao_res['thresholds_used']['optimal_low']}%–{fao_res['thresholds_used']['optimal_high']}%)",
+        f"Rain probability checked: {rain_prob}% forecast",
+        f"Recommendation: {title}",
+    ]
 
     return {
         "success": True,
@@ -285,11 +328,8 @@ async def get_insights(payload: InsightRequest):
         "irrigation_title": title,
         "irrigation_reason": reason,
         "sustainability_score": score,
-        "score_formula": "45 + soil moisture × 0.25 + crop health bonus − rain probability × 0.08, capped 0–100",
+        "score_formula": "FAO-56 Soil Moisture + Crop Stage Factor − Rain Offset",
         "suggestions": suggestions,
-        "activity_log": [
-            "Context checked: soil moisture, crop stage, and field temperature",
-            f"Forecast checked: {rain_prob}% rain probability",
-            f"Decision made: {title.lower()}",
-        ],
+        "activity_log": activity_log,
+        "fao_details": fao_res,
     }
