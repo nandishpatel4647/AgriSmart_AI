@@ -25,12 +25,14 @@ load_dotenv(PROJECT_ROOT / ".env")
 try:
     from backend.routers import (
         predict_router, weather_router, irrigation_router, sustainability_router, 
-        assistant_router, farm_router, auth_router, crop_recommendation_router
+        assistant_router, farm_router, auth_router, crop_recommendation_router,
+        scans_router, iot_router, crop_router
     )
 except ImportError:
     from routers import (
         predict_router, weather_router, irrigation_router, sustainability_router, 
-        assistant_router, farm_router, auth_router, crop_recommendation_router
+        assistant_router, farm_router, auth_router, crop_recommendation_router,
+        scans_router, iot_router, crop_router
     )
 
 
@@ -83,8 +85,11 @@ app.include_router(weather_router.router, prefix="/api", tags=["Weather"])
 app.include_router(irrigation_router.router, prefix="/api", tags=["Irrigation"])
 app.include_router(sustainability_router.router, prefix="/api", tags=["Sustainability"])
 app.include_router(assistant_router.router, prefix="/api", tags=["Assistant"])
+app.include_router(iot_router.router, prefix="/api", tags=["IoT"])
 app.include_router(farm_router.router, prefix="/api", tags=["FarmMapping"])
+app.include_router(crop_router.router, prefix="/api", tags=["CropRotation"])
 app.include_router(auth_router.router, prefix="/api", tags=["Authentication"])
+app.include_router(scans_router.router, prefix="/api", tags=["Scans & Farm"])
 app.include_router(crop_recommendation_router.router, prefix="/api", tags=["Crop Recommendation"])
 
 

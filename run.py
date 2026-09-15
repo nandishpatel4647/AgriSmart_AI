@@ -109,52 +109,64 @@ def main():
     
     if not check_prerequisites():
         sys.exit(1)
+
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(PROJECT_ROOT / ".env")
+    except Exception:
+        pass
+    
+    backend_port = int(os.getenv("BACKEND_PORT", "8005"))
+    frontend_port = int(os.getenv("FRONTEND_PORT", "3005"))
     
     # Port conflict checks
-    if is_port_in_use(8000):
-        print("  [NOTE] Port 8000 is already in use.")
-        if wait_for_http("http://127.0.0.1:8000/api/health", timeout=2.0):
-            print("  [OK] Existing AgriSmart backend is responding on port 8000.")
+    if is_port_in_use(backend_port):
+        print(f"  [NOTE] Port {backend_port} is already in use.")
+        if wait_for_http(f"http://127.0.0.1:{backend_port}/api/health", timeout=2.0):
+            print(f"  [OK] Existing AgriSmart backend is responding on port {backend_port}.")
             backend_proc = None
         else:
-            print("  [ERROR] Port 8000 is occupied by an unresponsive process.")
+            print(f"  [ERROR] Port {backend_port} is occupied by an unresponsive process.")
             sys.exit(1)
     else:
-        print("[2/4] Starting FastAPI Backend on http://127.0.0.1:8000 ...")
+        print(f"[2/4] Starting FastAPI Backend on http://127.0.0.1:{backend_port} ...")
         backend_cmd = [
             sys.executable, "-m", "uvicorn", "backend.main:app",
-            "--host", "0.0.0.0", "--port", "8000"
+            "--host", "0.0.0.0", "--port", str(backend_port)
         ]
         backend_proc = subprocess.Popen(backend_cmd, cwd=str(PROJECT_ROOT))
         
         # Wait for backend to be ready
-        if wait_for_http("http://127.0.0.1:8000/api/health", timeout=60.0):
-            print("  [OK] Backend healthy and ready at http://127.0.0.1:8000")
+        if wait_for_http(f"http://127.0.0.1:{backend_port}/api/health", timeout=60.0):
+            print(f"  [OK] Backend healthy and ready at http://127.0.0.1:{backend_port}")
         else:
-            print("  [ERROR] Backend failed to start within 15 seconds.")
+            print(f"  [ERROR] Backend failed to start within 60 seconds.")
             kill_proc_tree(backend_proc)
             sys.exit(1)
     
-    if is_port_in_use(3000):
-        print("  [NOTE] Port 3000 is already in use.")
-        if wait_for_http("http://localhost:3000", timeout=2.0):
-            print("  [OK] Existing AgriSmart frontend is responding on port 3000.")
+    if is_port_in_use(frontend_port):
+        print(f"  [NOTE] Port {frontend_port} is already in use.")
+        if wait_for_http(f"http://localhost:{frontend_port}", timeout=2.0):
+            print(f"  [OK] Existing AgriSmart frontend is responding on port {frontend_port}.")
             frontend_proc = None
         else:
-            print("  [ERROR] Port 3000 is occupied by an unresponsive process.")
+            print(f"  [ERROR] Port {frontend_port} is occupied by an unresponsive process.")
             if backend_proc:
                 kill_proc_tree(backend_proc)
             sys.exit(1)
     else:
-        print("[3/4] Starting Next.js Frontend on http://localhost:3000 ...")
+        print(f"[3/4] Starting Next.js Frontend on http://localhost:{frontend_port} ...")
         npm_cmd = "npm.cmd" if sys.platform == "win32" else "npm"
-        frontend_proc = subprocess.Popen([npm_cmd, "run", "dev"], cwd=str(FRONTEND_DIR))
+        frontend_env = os.environ.copy()
+        frontend_env["PORT"] = str(frontend_port)
+        frontend_env["BACKEND_PORT"] = str(backend_port)
+        frontend_proc = subprocess.Popen([npm_cmd, "run", "dev", "--", "-p", str(frontend_port)], cwd=str(FRONTEND_DIR), env=frontend_env)
         
         # Wait for frontend to be ready
-        if wait_for_http("http://127.0.0.1:3000", timeout=40.0):
-            print("  [OK] Frontend healthy and ready at http://localhost:3000")
+        if wait_for_http(f"http://127.0.0.1:{frontend_port}", timeout=90.0):
+            print(f"  [OK] Frontend healthy and ready at http://localhost:{frontend_port}")
         else:
-            print("  [ERROR] Frontend failed to start within 20 seconds.")
+            print(f"  [ERROR] Frontend failed to start within 90 seconds.")
             if backend_proc:
                 kill_proc_tree(backend_proc)
             kill_proc_tree(frontend_proc)
@@ -163,12 +175,16 @@ def main():
     print("\n" + "=" * 70)
     print("  [4/4] ALL SERVICES OPERATIONAL")
     print("=" * 70)
-    print("  Frontend Dashboard: http://localhost:3000")
-    print("  Disease Detect UI:  http://localhost:3000/detect")
-    print("  Weather Page:       http://localhost:3000/weather")
-    print("  AI Assistant:       http://localhost:3000/assistant")
-    print("  API Interactive UI: http://localhost:8000/docs")
-    print("  Backend Health:     http://localhost:8000/api/health")
+    print(f"  Frontend Dashboard: http://localhost:{frontend_port}")
+    print(f"  Disease Detect UI:  http://localhost:{frontend_port}/detect")
+    print(f"  Weather Page:       http://localhost:{frontend_port}/weather")
+    print(f"  AI Assistant:       http://localhost:{frontend_port}/assistant")
+    print(f"  Scan History:       http://localhost:{frontend_port}/history")
+    print(f"  Satellite Map:      http://localhost:{frontend_port}/map")
+    print(f"  Crop Rotation:      http://localhost:{frontend_port}/rotation")
+    print(f"  IoT Telemetry:      http://localhost:{frontend_port}/telemetry")
+    print(f"  API Interactive UI: http://localhost:{backend_port}/docs")
+    print(f"  Backend Health:     http://localhost:{backend_port}/api/health")
     print("=" * 70)
     print("  Press Ctrl+C to safely shut down all services")
     print("=" * 70 + "\n")

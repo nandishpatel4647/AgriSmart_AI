@@ -77,13 +77,17 @@ export interface InsightResponse {
   score_formula: string;
   suggestions: string[];
   activity_log: string[];
+  plain_language_explanation?: string;
 }
 
 export interface AssistantResponse {
-  mode: "grounded_rules";
-  answer: string;
-  actions: string[];
-  grounded_facts: string[];
+  mode?: "grounded_rules" | string;
+  answer?: string;
+  response?: string;
+  voice_script?: string;
+  actions?: string[];
+  grounded_facts?: string[];
+  success?: boolean;
 }
 
 export interface IoTReading {

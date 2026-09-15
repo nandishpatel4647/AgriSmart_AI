@@ -101,10 +101,10 @@ export default function Navbar() {
             <Link
               href="/detect"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-2.5 rounded-full bg-[#b77731] py-4 text-base font-extrabold text-[#fff8eb] shadow-md"
+              className="flex w-full items-center justify-center gap-2.5 rounded-2xl bg-[#b77731] px-5 py-3.5 text-base font-extrabold text-[#fff8eb] shadow-md"
             >
               <Leaf size={20} />
-              <span>Start New Disease Scan</span>
+              <span>New Scan</span>
             </Link>
           </div>
         </div>

@@ -27,22 +27,18 @@ class AssistantRequest(BaseModel):
     rain_probability: Optional[int] = None
 
 
-SYSTEM_PROMPT = """You are "AgriSmart AI," an expert agricultural assistant built for farmers in Gujarat, India (focus crops: vegetables and tobacco). You support English, Hindi, and Gujarati — always reply in the same language the user asked in, unless they explicitly ask you to switch.
+SYSTEM_PROMPT = """You are "AgriSmart AI," a warm, expert farming assistant for farmers in Gujarat and India.
+Always reply in the EXACT SAME LANGUAGE as the farmer's question (English, Hindi, or Gujarati).
 
-SCOPE:
-Answer only questions about: crop management, plant/leaf diseases, pest control, soil health, irrigation and weather-linked farming decisions, and relevant government agricultural schemes.
-If a question is unrelated to agriculture, briefly and politely decline, then redirect back to farming ("I can help with crop, soil, pest, or weather questions — what's going on with your field?").
+IMPORTANT FORMATTING & RESPONSE RULES:
+1. ALWAYS provide a complete, clear, and comprehensive answer to the farmer's question. Never cut off or stop mid-sentence.
+2. Structure your response into 3 to 5 clear, complete bullet points.
+3. Every sentence and bullet point MUST be fully written from start to finish.
 
-ACCURACY & SAFETY RULES:
-1. Never invent a diagnosis, chemical dosage, or scheme detail you're not confident about. If unsure, say so plainly and recommend the user confirm with their local Krishi Vigyan Kendra (KVK Helpline: 1800-180-1551) or agricultural officer.
-2. Any pesticide/chemical recommendation must include: correct dosage range, protective equipment reminder (gloves, mask), and a pre-harvest interval warning if relevant.
-3. If this assistant is being called after a leaf-disease image prediction, treat the model's output as a *possible* diagnosis, not confirmed fact — phrase it as "This looks like it could be X" rather than a definitive statement, and mention the model's confidence score if provided.
-4. If the image-based confidence score is below 60%, do not name a specific disease — instead advise the user to retake the photo in better light against a plain background, or consult a local expert.
-
-FORMAT:
-- Short paragraphs, bullet points for steps.
-- Plain, farmer-friendly language — no jargon, no corporate tone.
-- Keep replies under ~150 words unless the user asks for more detail.
+SCOPE & ACCURACY:
+- Focus on crop care, irrigation, fertilizers, pest management, disease control, weather guidance, and Krishi Vigyan Kendra (KVK Helpline: 1800-180-1551) advice.
+- Never invent exact chemical dosages. Recommend chemical categories (e.g. copper fungicide, neem oil) and advise confirming exact dosages on product label or with local KVK agri officers.
+- Be warm, encouraging, and easy to understand.
 
 {language_instruction}
 
@@ -51,9 +47,9 @@ CONTEXT FROM AGRISMART AI SYSTEM:
 """
 
 LANGUAGE_INSTRUCTIONS = {
-    "english": "Respond strictly in clear, short English. Keep sentences under 15 words. End with 1-2 suggested next actions.",
-    "hindi": "हिंदी (Devanagari script) में ही उत्तर दें। वाक्य 15 शब्दों से छोटे रखें। अंत में 1-2 कार्य सुझाव (Suggested Actions) दें।",
-    "gujarati": "માત્ર ગુજરાતી (Gujarati script) માં જ જવાબ આપો. વાક્યો 15 શબ્દોથી ટૂંકા રાખો. અંતમાં 1-2 સુચવેલ પગલાં (Suggested Actions) આપો.",
+    "english": "Respond in clear, simple English. Write 3-5 complete bullet points. Finish every sentence cleanly.",
+    "hindi": "हिंदी (Devanagari script) में ही उत्तर दें। 3-5 पूरे और स्पष्ट बिंदु (bullet points) लिखें। हर वाक्य को पूरा खत्म करें, कभी भी बीच में न छोड़ें।",
+    "gujarati": "માત્ર ગુજરાતી (Gujarati script) માં જ જવાબ આપો. 3-5 પૂરા અને સ્પષ્ટ મુદ્દા લખો. દરેક વાક્ય પૂરું પૂરું કરો, ક્યારેય વચ્ચેથી ન છોડો.",
 }
 
 # Regex to detect specific numeric dosage patterns (e.g. 2 ml/L, 500 g/acre, 5ml per liter)
@@ -265,7 +261,7 @@ async def _call_gemini(question: str, context: dict, language: str) -> Optional[
     )
     full_prompt = f"{prompt}\n\nFarmer's Question: {question}"
 
-    model_candidates = ["gemma-4-26b-a4b-it", "gemma-4-31b-it", "gemini-1.5-flash-8b", "gemini-1.5-flash"]
+    model_candidates = ["gemini-3.6-flash", "gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash-lite"]
 
     # Attempt 1: Google Generative AI Python SDK
     try:
@@ -277,17 +273,21 @@ async def _call_gemini(question: str, context: dict, language: str) -> Optional[
                 response = model.generate_content(
                     full_prompt,
                     generation_config=genai.GenerationConfig(
-                        max_output_tokens=800,
-                        temperature=0.3,
+                        max_output_tokens=2048,
+                        temperature=0.2,
                     ),
                 )
                 if response and response.candidates:
                     try:
                         parts_list = response.candidates[0].content.parts
-                        if parts_list:
-                            text = parts_list[-1].text
-                            if text:
-                                return _sanitize_dosage(text, language)
+                        full_parts = []
+                        for p in parts_list:
+                            if hasattr(p, "text") and p.text:
+                                if not getattr(p, "thought", False):
+                                    full_parts.append(p.text)
+                        if full_parts:
+                            full_text = "".join(full_parts)
+                            return _sanitize_dosage(full_text, language)
                     except Exception:
                         if hasattr(response, "text") and response.text:
                             return _sanitize_dosage(response.text, language)
@@ -303,23 +303,21 @@ async def _call_gemini(question: str, context: dict, language: str) -> Optional[
             headers = {"Content-Type": "application/json"}
             payload = {
                 "contents": [{"parts": [{"text": full_prompt}]}],
-                "generationConfig": {"temperature": 0.3, "maxOutputTokens": 800}
+                "generationConfig": {"temperature": 0.2, "maxOutputTokens": 2048}
             }
-            res = requests.post(url, json=payload, headers=headers, timeout=8)
+            res = requests.post(url, json=payload, headers=headers, timeout=12)
             if res.ok:
                 data = res.json()
                 candidates = data.get("candidates", [])
                 if candidates:
                     parts_list = candidates[0].get("content", {}).get("parts", [])
-                    # Extract last text part (avoid thinking thoughts)
-                    text = ""
+                    full_parts = []
                     for p in parts_list:
                         if "text" in p and not p.get("thought", False):
-                            text = p["text"]
-                    if not text and parts_list:
-                        text = parts_list[-1].get("text", "")
-                    if text:
-                        return _sanitize_dosage(text, language)
+                            full_parts.append(p["text"])
+                    if full_parts:
+                        full_text = "".join(full_parts)
+                        return _sanitize_dosage(full_text, language)
     except Exception as e:
         print(f"[WARN] Gemini API call failed: {e}")
 
