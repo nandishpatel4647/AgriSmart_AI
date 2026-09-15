@@ -191,6 +191,12 @@ def main():
             kill_proc_tree(frontend_proc)
         print("[INFO] All services stopped cleanly.")
 
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "backend"))
+sys.path.insert(0, str(ROOT / "model"))
 
 if __name__ == "__main__":
     if "PORT" in os.environ and os.environ.get("PORT") != "8000":

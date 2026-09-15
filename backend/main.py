@@ -100,6 +100,8 @@ app.include_router(scans_router.router, prefix="/api", tags=["Scans & Farm"])
 app.include_router(crop_recommendation_router.router, prefix="/api", tags=["Crop Recommendation"])
 
 
+@app.get("/")
+@app.get("/health")
 @app.get("/api/health")
 async def health():
     return {"status": "healthy", "service": "AgriSmart AI"}

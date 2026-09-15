@@ -3,9 +3,12 @@ import type { AssistantResponse, DetectionResponse, InsightInput, InsightRespons
 function getDirectBackend(): string {
   if (typeof window !== "undefined") {
     const host = window.location.hostname || "localhost";
+    if (host !== "localhost" && host !== "127.0.0.1") {
+      return "https://web-production-9e4aad.up.railway.app";
+    }
     return `http://${host}:8000`;
   }
-  return "http://127.0.0.1:8000";
+  return "https://web-production-9e4aad.up.railway.app";
 }
 
 export class ApiError extends Error {
