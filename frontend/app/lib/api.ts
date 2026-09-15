@@ -35,26 +35,36 @@ export async function resilientFetch(
     return optionsInit || {};
   };
 
-  // Attempt 1: Same-origin Next.js proxy (/api/...)
+  // On production cloud domains, call the direct high-performance backend first!
+  const isCloud = typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
+  
+  if (isCloud) {
+    const directUrl = `${directBackend}${cleanEndpoint}`;
+    try {
+      const res = await fetch(directUrl, getOptions());
+      if (res.ok) return res;
+      console.warn(`Direct backend returned ${res.status}, trying proxy fallback...`);
+    } catch (directErr) {
+      console.warn(`Direct fetch to ${directUrl} failed, trying proxy fallback:`, directErr);
+    }
+  }
+
+  // Attempt local/same-origin proxy
   try {
     const res = await fetch(cleanEndpoint, getOptions());
     if (res.ok) return res;
-    if (res.status >= 500 || res.status === 404) {
-      console.warn(`Proxy returned ${res.status} for ${cleanEndpoint}, trying direct backend...`);
-    } else {
-      return res;
+    if (!isCloud) {
+      // On localhost, try direct port 8000 fallback
+      const directUrl = `${directBackend}${cleanEndpoint}`;
+      return await fetch(directUrl, getOptions());
     }
+    return res;
   } catch (proxyErr) {
-    console.warn(`Proxy network error for ${cleanEndpoint}, falling back to direct backend:`, proxyErr);
-  }
-
-  // Attempt 2: Direct FastAPI backend
-  const directUrl = `${directBackend}${cleanEndpoint}`;
-  try {
-    return await fetch(directUrl, getOptions());
-  } catch (directErr) {
-    console.error(`Direct fetch also failed for ${directUrl}:`, directErr);
-    throw new Error(`Unable to connect to AgriSmart AI backend service at ${directUrl}. Please verify server is running.`);
+    if (!isCloud) {
+      const directUrl = `${directBackend}${cleanEndpoint}`;
+      return await fetch(directUrl, getOptions());
+    }
+    throw proxyErr;
   }
 }
 
