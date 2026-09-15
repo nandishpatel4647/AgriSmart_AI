@@ -4,7 +4,7 @@ const backendUrl = (
   process.env.BACKEND_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   (process.env.NODE_ENV === "production"
-    ? "https://web-production-9e4aad.up.railway.app"
+    ? "https://outsourcing-implementation-randy-maple.trycloudflare.com"
     : "http://127.0.0.1:8000")
 ).replace(/\/$/, "");
 
