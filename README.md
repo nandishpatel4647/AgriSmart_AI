@@ -15,6 +15,14 @@
 
 ---
 
+
+## Live Deployment:
+https://agrismart-ai-sih.vercel.app/
+
+## Demo Video: 
+https://drive.google.com/file/d/1YO7PsgQMPfOD9UIEY_GI5VEaqP0-k54D/view?usp=sharing
+
+
 ## 🚀 Quickstart (< 5 Minutes Setup)
 
 Follow these simple steps to launch both the FastAPI backend and Next.js frontend concurrently:
