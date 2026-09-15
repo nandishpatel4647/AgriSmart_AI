@@ -32,5 +32,5 @@ RUN python scripts/ensure_weights.py
 # Expose default port
 EXPOSE 8000
 
-# Start production uvicorn server
-CMD uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Start production server using clean port resolution
+CMD ["python", "run.py"]
