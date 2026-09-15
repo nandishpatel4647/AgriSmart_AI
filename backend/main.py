@@ -25,14 +25,12 @@ load_dotenv(PROJECT_ROOT / ".env")
 try:
     from backend.routers import (
         predict_router, weather_router, irrigation_router, sustainability_router, 
-        assistant_router, iot_router, farm_router, crop_router, auth_router, scans_router,
-        crop_recommendation_router
+        assistant_router, farm_router, auth_router, crop_recommendation_router
     )
 except ImportError:
     from routers import (
         predict_router, weather_router, irrigation_router, sustainability_router, 
-        assistant_router, iot_router, farm_router, crop_router, auth_router, scans_router,
-        crop_recommendation_router
+        assistant_router, farm_router, auth_router, crop_recommendation_router
     )
 
 
@@ -53,13 +51,6 @@ async def lifespan(app: FastAPI):
     """Preload model in background for instant startup and fast inference."""
     print("[INFO] Preloading ML model in background thread...")
     asyncio.create_task(asyncio.to_thread(_preload_model_background))
-
-    print("[INFO] Starting NDVI background checks...")
-    try:
-        from ndvi_service import start_cron
-        start_cron()
-    except Exception as e:
-        print(f"[WARN] Failed to start NDVI cron: {e}")
 
     yield
     print("[INFO] Shutting down AgriSmart AI backend")
@@ -92,11 +83,8 @@ app.include_router(weather_router.router, prefix="/api", tags=["Weather"])
 app.include_router(irrigation_router.router, prefix="/api", tags=["Irrigation"])
 app.include_router(sustainability_router.router, prefix="/api", tags=["Sustainability"])
 app.include_router(assistant_router.router, prefix="/api", tags=["Assistant"])
-app.include_router(iot_router.router, prefix="/api", tags=["IoT"])
 app.include_router(farm_router.router, prefix="/api", tags=["FarmMapping"])
-app.include_router(crop_router.router, prefix="/api", tags=["CropRotation"])
 app.include_router(auth_router.router, prefix="/api", tags=["Authentication"])
-app.include_router(scans_router.router, prefix="/api", tags=["Scans & Farm"])
 app.include_router(crop_recommendation_router.router, prefix="/api", tags=["Crop Recommendation"])
 
 

@@ -143,18 +143,10 @@ export async function askAssistant(question: string, language: string, context?:
   return apiPost("/assistant", { question, language, context });
 }
 
-export async function getSensorData() {
-  return apiGet("/iot/sensors");
-}
-
 export async function getApiStatus() {
   return apiGet("/status");
 }
 
 export async function getAdvisory(data: any) {
   return apiPost("/advisor", data);
-}
-
-export async function getSensorHistory(hours: number = 6) {
-  return apiGet(`/iot/history?hours=${hours}`);
 }

@@ -152,18 +152,6 @@ def test_sustainability_formula():
     assert "formula" in data
 
 
-def test_iot_sensors():
-    """Verify GET /api/iot/sensors returns simulated telemetry clearly labeled."""
-    response = client.get("/api/iot/sensors")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["success"] is True
-    assert data["data_type"] == "simulated"
-    assert "reading" in data
-    reading = data["reading"]
-    assert "temperature_c" in reading
-    assert "soil_moisture_pct" in reading
-
 
 def test_advisor_endpoint():
     """Verify POST /api/advisor generates unified advisory."""
