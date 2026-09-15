@@ -262,36 +262,56 @@ async def _call_gemini(question: str, context: dict, language: str) -> Optional[
     if not api_key:
         return None  # Trigger fallback
     
+    context_str = _format_context(context)
+    lang_instruction = LANGUAGE_INSTRUCTIONS.get(language, LANGUAGE_INSTRUCTIONS["english"])
+    
+    prompt = SYSTEM_PROMPT.format(
+        language_instruction=lang_instruction,
+        context=context_str,
+    )
+    full_prompt = f"{prompt}\n\nFarmer's Question: {question}"
+
+    # Attempt 1: Google Generative AI Python SDK
     try:
         import google.generativeai as genai
-        
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash")
-        
-        context_str = _format_context(context)
-        lang_instruction = LANGUAGE_INSTRUCTIONS.get(language, LANGUAGE_INSTRUCTIONS["english"])
-        
-        prompt = SYSTEM_PROMPT.format(
-            language_instruction=lang_instruction,
-            context=context_str,
-        )
-        
-        response = model.generate_content(
-            [{"role": "user", "parts": [prompt + f"\n\nFarmer's question: {question}"]}],
-            generation_config=genai.GenerationConfig(
-                max_output_tokens=350,  # Enforce short response server-side
-                temperature=0.3,
-            ),
-        )
-        
-        raw_text = response.text
-        # Apply server-side guardrail sanitizer for numeric dosages
-        sanitized_text = _sanitize_dosage(raw_text, language)
-        return sanitized_text
-    
+        for model_name in ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-pro"]:
+            try:
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(
+                    full_prompt,
+                    generation_config=genai.GenerationConfig(
+                        max_output_tokens=350,
+                        temperature=0.3,
+                    ),
+                )
+                if response and response.text:
+                    return _sanitize_dosage(response.text, language)
+            except Exception:
+                continue
+    except ImportError:
+        pass
+
+    # Attempt 2: Direct Gemini REST API Fallback
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "contents": [{"parts": [{"text": full_prompt}]}],
+            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 350}
+        }
+        res = requests.post(url, json=payload, headers=headers, timeout=8)
+        if res.ok:
+            data = res.json()
+            candidates = data.get("candidates", [])
+            if candidates:
+                text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                if text:
+                    return _sanitize_dosage(text, language)
     except Exception as e:
         print(f"[WARN] Gemini API call failed: {e}")
-        return None
+
+    return None
 
 
 @router.post("/assistant")

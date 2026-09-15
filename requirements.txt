@@ -1,3 +1,4 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
 # AgriSmart AI — Python Dependencies
 # Core ML
 torch>=2.10.0

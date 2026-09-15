@@ -1,11 +1,17 @@
 import type { AssistantResponse, DetectionResponse, InsightInput, InsightResponse, IoTReading, WeatherResponse } from "./types";
 
 function getDirectBackend(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
+  }
   if (typeof window !== "undefined") {
     const host = window.location.hostname || "localhost";
+    if (host !== "localhost" && host !== "127.0.0.1") {
+      return "https://outsourcing-implementation-randy-maple.trycloudflare.com";
+    }
     return `http://${host}:8000`;
   }
-  return "http://127.0.0.1:8000";
+  return "https://outsourcing-implementation-randy-maple.trycloudflare.com";
 }
 
 export class ApiError extends Error {
