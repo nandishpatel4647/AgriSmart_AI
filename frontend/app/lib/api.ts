@@ -143,23 +143,6 @@ export async function askAssistant(question: string, language: string, context?:
   return apiPost("/assistant", { question, language, context });
 }
 
-export async function getSensorData() {
-  return apiGet("/iot/sensors");
-}
-
-export async function getSensorHistory(hours: number = 6) {
-  return apiGet(`/iot/history?hours=${hours}`);
-}
-
-export async function getScans(crop?: string) {
-  const query = crop ? `?crop=${encodeURIComponent(crop)}` : "";
-  return apiGet(`/scans/history${query}`);
-}
-
-export async function saveScan(scanData: any) {
-  return apiPost("/scans", scanData);
-}
-
 export async function getCropRecommendation(data: any) {
   return apiPost("/crop-recommendation", data);
 }

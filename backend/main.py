@@ -25,16 +25,13 @@ load_dotenv(PROJECT_ROOT / ".env")
 try:
     from backend.routers import (
         predict_router, weather_router, irrigation_router, sustainability_router, 
-        assistant_router, farm_router, auth_router, crop_recommendation_router,
-        scans_router, iot_router, crop_router
+        assistant_router, farm_router, auth_router, crop_recommendation_router
     )
 except ImportError:
     from routers import (
         predict_router, weather_router, irrigation_router, sustainability_router, 
-        assistant_router, farm_router, auth_router, crop_recommendation_router,
-        scans_router, iot_router, crop_router
+        assistant_router, farm_router, auth_router, crop_recommendation_router
     )
-
 
 import asyncio
 
@@ -85,11 +82,8 @@ app.include_router(weather_router.router, prefix="/api", tags=["Weather"])
 app.include_router(irrigation_router.router, prefix="/api", tags=["Irrigation"])
 app.include_router(sustainability_router.router, prefix="/api", tags=["Sustainability"])
 app.include_router(assistant_router.router, prefix="/api", tags=["Assistant"])
-app.include_router(iot_router.router, prefix="/api", tags=["IoT"])
 app.include_router(farm_router.router, prefix="/api", tags=["FarmMapping"])
-app.include_router(crop_router.router, prefix="/api", tags=["CropRotation"])
 app.include_router(auth_router.router, prefix="/api", tags=["Authentication"])
-app.include_router(scans_router.router, prefix="/api", tags=["Scans & Farm"])
 app.include_router(crop_recommendation_router.router, prefix="/api", tags=["Crop Recommendation"])
 
 
@@ -112,7 +106,10 @@ async def get_advisory(data: dict):
     - sustainability: sustainability score
     - sensor_data: IoT sensor readings
     """
-    from advisor import generate_advisory
+    try:
+        from backend.advisor import generate_advisory
+    except ImportError:
+        from advisor import generate_advisory
     advisory = generate_advisory(
         prediction=data.get("prediction"),
         weather=data.get("weather"),
@@ -130,10 +127,14 @@ async def status():
     
     model_loaded = False
     try:
-        from predict import _model_cache
-        model_loaded = _model_cache["model"] is not None
-    except:
-        pass
+        from model.predict import _model_cache
+        model_loaded = _model_cache.get("model") is not None
+    except Exception:
+        try:
+            from predict import _model_cache
+            model_loaded = _model_cache.get("model") is not None
+        except Exception:
+            pass
     
     return {
         "status": "operational",

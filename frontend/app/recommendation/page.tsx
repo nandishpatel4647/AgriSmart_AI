@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Check, Compass, Info, Leaf, LoaderCircle, Mic, MicOff, MapPin, Sparkles, Sprout, CheckCircle2 } from "lucide-react";
+import { Compass, LoaderCircle, Mic, MicOff, MapPin, Sprout } from "lucide-react";
 import { apiGet, apiPost } from "../lib/api";
 import type { WeatherResponse } from "../lib/types";
 
-function formatFertilizerBags(cropName: string, npk: string, plain?: string) {
+function formatFertilizerBags(cropName: string, _npk: string, plain?: string) {
   if (plain && !plain.includes("kg/ha")) return plain;
   const name = cropName.toLowerCase();
   if (name.includes("tomato")) return "2.5 bags Urea, 1.3 bags DAP, 1.0 bag Potash per acre";
@@ -104,10 +104,10 @@ export default function CropRecommendationPage() {
             const { latitude, longitude } = pos.coords;
             const wData = await apiGet<WeatherResponse>(`/weather?latitude=${latitude}&longitude=${longitude}`).catch(() => null);
             if (wData) {
-              if (wData.current.temperature !== undefined) setTemperature(Math.round(wData.current.temperature));
-              if (wData.current.humidity !== undefined) setHumidity(wData.current.humidity);
+              if (wData.current.temperature != null) setTemperature(Math.round(wData.current.temperature));
+              if (wData.current.humidity != null) setHumidity(wData.current.humidity);
               if (wData.current.city_name) setLocationName(wData.current.city_name);
-              if (wData.forecast[0]?.rain_probability !== undefined) {
+              if (wData.forecast && wData.forecast[0] && wData.forecast[0].rain_probability != null) {
                 setRainfall(Math.round(wData.forecast[0].rain_probability * 12)); // estimate rainfall index
               }
             }
@@ -117,8 +117,8 @@ export default function CropRecommendationPage() {
             // Fallback to default weather endpoint
             const wData = await apiGet<WeatherResponse>("/weather").catch(() => null);
             if (wData) {
-              if (wData.current.temperature !== undefined) setTemperature(Math.round(wData.current.temperature));
-              if (wData.current.humidity !== undefined) setHumidity(wData.current.humidity);
+              if (wData.current.temperature != null) setTemperature(Math.round(wData.current.temperature));
+              if (wData.current.humidity != null) setHumidity(wData.current.humidity);
               if (wData.current.city_name) setLocationName(wData.current.city_name);
             }
             setGeoLoading(false);
@@ -127,8 +127,8 @@ export default function CropRecommendationPage() {
       } else {
         const wData = await apiGet<WeatherResponse>("/weather").catch(() => null);
         if (wData) {
-          if (wData.current.temperature !== undefined) setTemperature(Math.round(wData.current.temperature));
-          if (wData.current.humidity !== undefined) setHumidity(wData.current.humidity);
+          if (wData.current.temperature != null) setTemperature(Math.round(wData.current.temperature));
+          if (wData.current.humidity != null) setHumidity(wData.current.humidity);
         }
         setGeoLoading(false);
       }
@@ -153,7 +153,9 @@ export default function CropRecommendationPage() {
     }
 
     const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      typeof window !== "undefined" &&
+      ((window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any }).SpeechRecognition ||
+       (window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any }).webkitSpeechRecognition);
 
     if (!SpeechRecognition) {
       alert("Speech recognition is supported in Chrome or Edge browser.");
@@ -289,7 +291,7 @@ export default function CropRecommendationPage() {
             {voiceTranscript && (
               <div className="rounded-2xl bg-amber-50 p-4 border-2 border-amber-200 text-xs font-extrabold text-amber-900 flex items-center gap-3">
                 <Mic size={18} className="text-[#b77731] shrink-0" />
-                <span>Voice Recognized: <em>"{voiceTranscript}"</em></span>
+                <span>Voice Recognized: <em>&quot;{voiceTranscript}&quot;</em></span>
               </div>
             )}
 

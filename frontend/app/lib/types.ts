@@ -47,6 +47,8 @@ export interface WeatherCurrent {
   humidity: number | null;
   precipitation: number | null;
   wind_speed: number | null;
+  city_name?: string;
+  condition?: string;
 }
 
 export interface WeatherResponse {
