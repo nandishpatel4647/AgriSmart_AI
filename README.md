@@ -106,9 +106,14 @@ AgriSmart AI provides specialized diagnostic coverage for 9 core agricultural cr
 - **Strawberry**: Leaf Scorch, Healthy
 - **Tomato**: Bacterial Spot, Early Blight, Late Blight, Leaf Mold, Septoria, Spider Mites, Target Spot, Mosaic Virus, Yellow Leaf Curl Virus, Healthy
 
+## ⚠️ System Limitations & Operational Scope
+
+1. **Supported Crop Families Only**: AgriSmart AI is calibrated specifically for 9 primary crop families (Apple, Cherry, Corn, Grape, Peach, Bell Pepper, Potato, Strawberry, Tomato) across 33 disease/healthy conditions. Any attempt to classify non-supported crops (e.g. Tulsi, Neem, Wheat, Mango) or non-plant objects triggers an automatic Open-Set OOD Rejection (`UNSEEN_SPECIES_DETECTED` / `NON_PLANT_IMAGE`) to prevent hallucinated treatments.
+2. **Photo Quality Thresholds**: Images must have adequate focus and lighting (Laplacian sharpness variance $\ge 10$, mean brightness $\ge 40$). Extremely blurry or pitch-black photos return a quality warning.
+3. **Extension Advisory Notice**: Guidance generated follows standardized ICAR & FAO agronomic management guidelines. Farmers facing severe or novel epidemic outbreaks are encouraged to consult local agricultural extension officers for field-level chemical verification.
+
 ---
 
-<<<<<<< HEAD
 ## 📸 Field Photograph Rules & Testing Guidelines
 
 To ensure accurate crop disease diagnosis and prevent false OOD (Out-Of-Distribution) rejections, follow these evaluation & field photo guidelines:
