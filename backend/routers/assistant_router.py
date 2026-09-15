@@ -6,6 +6,7 @@ Complies with PART A System Prompt and PART B Safety Guardrails.
 
 import os
 import re
+import requests
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
@@ -26,29 +27,22 @@ class AssistantRequest(BaseModel):
     rain_probability: Optional[int] = None
 
 
-SYSTEM_PROMPT = """You are the AgriSmart AI Assistant — a warm, patient, and knowledgeable farming helper for Indian farmers, mostly in Gujarat. Many farmers have limited literacy and prefer simple, direct advice in Hindi, Gujarati, or English.
+SYSTEM_PROMPT = """You are "AgriSmart AI," an expert agricultural assistant built for farmers in Gujarat, India (focus crops: vegetables and tobacco). You support English, Hindi, and Gujarati — always reply in the same language the user asked in, unless they explicitly ask you to switch.
 
-LANGUAGE & COMMUNICATION:
-1. LANGUAGE MATCHING: Respond strictly in the SAME language as the farmer (English, Hindi, or Gujarati). Mix in common local names for crops and diseases (e.g., in Gujarati/Hindi alongside English) where helpful.
-2. INFORMAL & PHONETIC INPUT: If input is phonetic or informal (Hinglish/Gujlish), parse intent accurately without demanding perfect grammar.
-3. SHORT SENTENCES: Keep every sentence under ~15 words. Avoid complex technical jargon; explain any technical term in one simple clause.
-4. CONCISE RESPONSE: Default to 3-5 short lines or bullet points. Never write a wall of text.
+SCOPE:
+Answer only questions about: crop management, plant/leaf diseases, pest control, soil health, irrigation and weather-linked farming decisions, and relevant government agricultural schemes.
+If a question is unrelated to agriculture, briefly and politely decline, then redirect back to farming ("I can help with crop, soil, pest, or weather questions — what's going on with your field?").
 
-WHAT YOU KNOW & WHEN TO USE IT:
-- SCAN RESULTS: If disease scan results (crop, disease, confidence, severity) are in context, reference them directly instead of asking the farmer to re-describe their problem.
-- WEATHER & SPRAYING: If weather data is provided in context, use real numbers (temp, rain, wind). Never invent weather forecasts. If no weather data is present, say so plainly and give general seasonal guidance.
-- NON-FARMING TOPICS: Gently redirect non-agricultural questions back to crop care and farming.
+ACCURACY & SAFETY RULES:
+1. Never invent a diagnosis, chemical dosage, or scheme detail you're not confident about. If unsure, say so plainly and recommend the user confirm with their local Krishi Vigyan Kendra (KVK Helpline: 1800-180-1551) or agricultural officer.
+2. Any pesticide/chemical recommendation must include: correct dosage range, protective equipment reminder (gloves, mask), and a pre-harvest interval warning if relevant.
+3. If this assistant is being called after a leaf-disease image prediction, treat the model's output as a *possible* diagnosis, not confirmed fact — phrase it as "This looks like it could be X" rather than a definitive statement, and mention the model's confidence score if provided.
+4. If the image-based confidence score is below 60%, do not name a specific disease — instead advise the user to retake the photo in better light against a plain background, or consult a local expert.
 
-WHAT YOU MUST NEVER DO (SAFETY GUARDRAILS):
-- NO EXACT CHEMICAL DOSAGES: Never give exact pesticide/fungicide dosage numbers (e.g. "2 ml/L", "500g per acre", "5% solution") as universally safe. Dosage depends on product concentration. Give the general treatment category (e.g. "a copper-based fungicide" or "neem oil spray") and tell them to confirm exact dosage with the product label or local Krishi Vigyan Kendra (KVK Helpline: 1800-180-1551) / agri officer.
-- NO UNJUSTIFIED CERTAINTY: If confidence is low or image is out-of-domain, say: "This looks like X, but I'm not fully sure — here's what to check to confirm."
-- NO BRAND PROMOTION: Recommend generic chemical classes or organic remedies, never brand names.
-
-TONE:
-Warm, patient, respectful — like a knowledgeable neighbor, never condescending or overly formal.
-
-OUTPUT FORMAT:
-Always end practical answers with 1-2 suggested next actions the farmer can tap (e.g. "• Action: Scan another leaf", "• Action: Check spray window", "• Action: Talk to KVK expert").
+FORMAT:
+- Short paragraphs, bullet points for steps.
+- Plain, farmer-friendly language — no jargon, no corporate tone.
+- Keep replies under ~150 words unless the user asks for more detail.
 
 {language_instruction}
 
@@ -271,22 +265,32 @@ async def _call_gemini(question: str, context: dict, language: str) -> Optional[
     )
     full_prompt = f"{prompt}\n\nFarmer's Question: {question}"
 
+    model_candidates = ["gemma-4-26b-a4b-it", "gemma-4-31b-it", "gemini-1.5-flash-8b", "gemini-1.5-flash"]
+
     # Attempt 1: Google Generative AI Python SDK
     try:
         import google.generativeai as genai
         genai.configure(api_key=api_key)
-        for model_name in ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-pro"]:
+        for model_name in model_candidates:
             try:
                 model = genai.GenerativeModel(model_name)
                 response = model.generate_content(
                     full_prompt,
                     generation_config=genai.GenerationConfig(
-                        max_output_tokens=350,
+                        max_output_tokens=800,
                         temperature=0.3,
                     ),
                 )
-                if response and response.text:
-                    return _sanitize_dosage(response.text, language)
+                if response and response.candidates:
+                    try:
+                        parts_list = response.candidates[0].content.parts
+                        if parts_list:
+                            text = parts_list[-1].text
+                            if text:
+                                return _sanitize_dosage(text, language)
+                    except Exception:
+                        if hasattr(response, "text") and response.text:
+                            return _sanitize_dosage(response.text, language)
             except Exception:
                 continue
     except ImportError:
@@ -294,20 +298,28 @@ async def _call_gemini(question: str, context: dict, language: str) -> Optional[
 
     # Attempt 2: Direct Gemini REST API Fallback
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-        headers = {"Content-Type": "application/json"}
-        payload = {
-            "contents": [{"parts": [{"text": full_prompt}]}],
-            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 350}
-        }
-        res = requests.post(url, json=payload, headers=headers, timeout=8)
-        if res.ok:
-            data = res.json()
-            candidates = data.get("candidates", [])
-            if candidates:
-                text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-                if text:
-                    return _sanitize_dosage(text, language)
+        for m_name in model_candidates:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{m_name}:generateContent?key={api_key}"
+            headers = {"Content-Type": "application/json"}
+            payload = {
+                "contents": [{"parts": [{"text": full_prompt}]}],
+                "generationConfig": {"temperature": 0.3, "maxOutputTokens": 800}
+            }
+            res = requests.post(url, json=payload, headers=headers, timeout=8)
+            if res.ok:
+                data = res.json()
+                candidates = data.get("candidates", [])
+                if candidates:
+                    parts_list = candidates[0].get("content", {}).get("parts", [])
+                    # Extract last text part (avoid thinking thoughts)
+                    text = ""
+                    for p in parts_list:
+                        if "text" in p and not p.get("thought", False):
+                            text = p["text"]
+                    if not text and parts_list:
+                        text = parts_list[-1].get("text", "")
+                    if text:
+                        return _sanitize_dosage(text, language)
     except Exception as e:
         print(f"[WARN] Gemini API call failed: {e}")
 
