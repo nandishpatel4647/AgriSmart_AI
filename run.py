@@ -1,7 +1,6 @@
 """
-AgriSmart AI — Production-Grade Local Development Launcher
-Orchestrates and monitors both FastAPI backend (port 8000) and Next.js frontend (port 3000).
-Features health check polling, process monitoring, and graceful process tree shutdown.
+AgriSmart AI — Production-Grade Local Development Launcher & Entry Point
+Orchestrates FastAPI backend and Next.js frontend, or starts standalone backend if PORT is provided.
 """
 
 import os
@@ -194,4 +193,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if "PORT" in os.environ and os.environ.get("PORT") != "8000":
+        import uvicorn
+        port = int(os.environ.get("PORT", 8000))
+        print(f"[INFO] Starting AgriSmart AI standalone backend on 0.0.0.0:{port}")
+        uvicorn.run("backend.main:app", host="0.0.0.0", port=port)
+    else:
+        main()
