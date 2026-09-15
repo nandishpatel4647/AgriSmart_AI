@@ -37,6 +37,7 @@ export default function CropRecommendationPage() {
   const [locationName, setLocationName] = useState("Gujarat / Semi-Arid");
   const [prevCrop, setPrevCrop] = useState("Legumes");
 
+  const [voiceLang, setVoiceLang] = useState("gu-IN");
   const [loading, setLoading] = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -139,7 +140,7 @@ export default function CropRecommendationPage() {
       const recognition = new SpeechRecognition();
       recognition.continuous = false;
       recognition.interimResults = true;
-      recognition.lang = "gu-IN"; // Default Gujarati/Hindi multi-lingual support
+      recognition.lang = voiceLang; // Dynamic spoken language (gu-IN, hi-IN, en-IN)
 
       recognition.onstart = () => setIsListening(true);
       recognition.onresult = (event: any) => {
@@ -223,19 +224,42 @@ export default function CropRecommendationPage() {
                 <Sprout size={24} className="text-[#b77731]" /> Soil & Environment Parameters
               </h3>
 
-              {/* Vernacular Mic Input Button */}
-              <button
-                type="button"
-                onClick={toggleVoiceInput}
-                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-black transition-all cursor-pointer border-2 ${
-                  isListening
-                    ? "bg-red-600 text-white border-red-600 animate-pulse"
-                    : "bg-[#b77731] text-white border-[#b77731] hover:bg-[#a36829]"
-                }`}
-              >
-                {isListening ? <MicOff size={16} /> : <Mic size={16} />}
-                <span>{isListening ? "Listening..." : "Speak Soil / Voice Input"}</span>
-              </button>
+              {/* Vernacular Mic Input Controls */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center rounded-full bg-white p-1 border-2 border-[#19352b]/15 text-xs font-black">
+                  {[
+                    { id: "gu-IN", label: "ગુજરાતી" },
+                    { id: "hi-IN", label: "हिन्दी" },
+                    { id: "en-US", label: "English" },
+                  ].map((lang) => (
+                    <button
+                      key={lang.id}
+                      type="button"
+                      onClick={() => setVoiceLang(lang.id)}
+                      className={`rounded-full px-3 py-1 transition-all cursor-pointer ${
+                        voiceLang === lang.id
+                          ? "bg-[#19352b] text-[#fff8eb]"
+                          : "text-[#19352b]/70 hover:text-[#19352b]"
+                      }`}
+                    >
+                      {lang.label}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={toggleVoiceInput}
+                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-black transition-all cursor-pointer border-2 ${
+                    isListening
+                      ? "bg-red-600 text-white border-red-600 animate-pulse"
+                      : "bg-[#b77731] text-white border-[#b77731] hover:bg-[#a36829]"
+                  }`}
+                >
+                  {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+                  <span>{isListening ? "Listening..." : "Speak Input"}</span>
+                </button>
+              </div>
             </div>
 
             {voiceTranscript && (
