@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CloudSun, LayoutDashboard, Leaf, MessageCircle, ScanLine, Sprout, Menu, X } from "lucide-react";
+import { CloudSun, LayoutDashboard, Leaf, MessageCircle, ScanLine, Sprout, User, Menu, X } from "lucide-react";
 
 const primaryLinks = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, testId: "nav-dashboard-link" },
@@ -11,6 +11,7 @@ const primaryLinks = [
   { to: "/weather", label: "Weather", icon: CloudSun, testId: "nav-weather-link" },
   { to: "/recommendation", label: "Crop Recommendation", icon: Sprout, testId: "nav-recommendation-link" },
   { to: "/assistant", label: "AI Assistant", icon: MessageCircle, testId: "nav-assistant-link" },
+  { to: "/my-farm", label: "My Farm", icon: User, testId: "nav-myfarm-link" },
 ];
 
 export default function Navbar() {
