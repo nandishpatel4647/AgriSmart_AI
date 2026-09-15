@@ -2,7 +2,7 @@
 
 import React, { useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Check, FileImage, Leaf, LoaderCircle, Shield, ShieldAlert, Sparkles, UploadCloud, Info, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ArrowUpRight, Check, FileImage, Leaf, LoaderCircle, ScanLine, Shield, ShieldAlert, Sparkles, UploadCloud, Info, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { apiUpload } from "../lib/api";
 import type { DetectionResponse } from "../lib/types";
 
