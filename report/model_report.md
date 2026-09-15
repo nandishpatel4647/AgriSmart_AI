@@ -72,3 +72,16 @@
 1. **Lab vs Field Domain Gap**: While `ConvNeXt-Tiny` achieves 99.56% Macro-F1 on held-out leaf benchmarks, severe real-field clutter (e.g. soil occlusions, harsh direct sunlight glare, or heavy multi-leaf stacking) can degrade confidence.
 2. **Quality Gate Sensitivity**: Photos under 100x100 resolution or with Laplacian variance $<10$ trigger the photo quality gate warning before classification.
 3. **Supported Botanical Scope**: Restricted strictly to 9 crop families (33 conditions). Unseen crops (e.g. Wheat, Tulsi, Mango) are rejected as Out-Of-Distribution rather than forced into a false disease class.
+
+---
+
+## 6. Bonus Module A: Scientific Crop Recommendation Engine
+
+- **Overview**: Recommends optimal crops based on 9 core environmental and soil parameters.
+- **Input Parameters**: Soil Type, Soil pH, Temperature (°C), Humidity (%), Rainfall (mm), Water Availability, Cropping Season, Geographic Location, and Previous Crop Rotation.
+- **Evaluation Metric**: **Crop Suitability Score (Percentage Match 0–100%)** computed via a multi-factor ICAR/FAO Agronomic Penalty & Rotation Bonus Matrix:
+  $$\text{Suitability Score (\%)} = \max\left(0, \min\left(99, 100 - \sum \text{Penalties} + \sum \text{Rotation Bonuses}\right)\right)$$
+- **Data Source**: ICAR (Indian Council of Agricultural Research) & FAO Agronomic Guidelines and Soil Science Database.
+- **API Endpoint**: `POST /api/recommend_crop`
+- **Frontend Interface**: `/recommendation`
+
