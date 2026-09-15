@@ -143,6 +143,20 @@ src/train.py                      06d25b77ced2a5e8722613026e93505acc619a9aa5f27e
 
 ---
 
+## 📸 Field Photograph Rules & Testing Guidelines
+
+To ensure accurate crop disease diagnosis and prevent false OOD (Out-Of-Distribution) rejections, follow these evaluation & field photo guidelines:
+
+| Criteria | Recommended Guideline | What Will Trigger Rejection / Warning |
+| :--- | :--- | :--- |
+| **Supported Crop Species** | Must belong to 1 of the **9 supported crop families** (Apple, Cherry, Corn, Grape, Peach, Bell Pepper, Potato, Strawberry, Tomato). | Unsupported plant species (*Tulsi, Mango, Neem, Rose, Wheat, Ficus, Betel leaf, Blueberry, Raspberry, Soybean, Squash*) trigger `UNSEEN_SPECIES_DETECTED`. |
+| **Leaf Framing** | Focus on a **single leaf or foliage cluster** filling **60%–80%** of the image frame. | Non-plant objects (*Tractors, tools, soil-only photos*) trigger `NON_PLANT_IMAGE`. |
+| **Lighting & Exposure** | Natural daytime light or balanced artificial light. | Pitch-black night shots or extreme dark exposure (mean brightness $< 40$). |
+| **Focus & Sharpness** | Clear, steady shot showing leaf veins & lesion spots (resolution $\ge 224 \times 224$). | Extremely blurred images (Laplacian variance $< 10$) trigger `LOW_IMAGE_QUALITY` warning. |
+| **Background Noise** | Standard field foliage, vine, or soil background is supported. | Distant panoramic landscapes where the target crop leaf occupies $< 5\%$ of frame pixels. |
+
+---
+
 ## 🗣️ Vernacular Voice Advisory (English, Hindi, Gujarati)
 
 AgriSmart AI supports regional voice-based interaction using browser-native Speech Recognition (STT) and Speech Synthesis (TTS):
