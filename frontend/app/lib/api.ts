@@ -6,12 +6,12 @@ function getDirectBackend(): string {
   }
   if (typeof window !== "undefined") {
     const host = window.location.hostname || "localhost";
-    if (host !== "localhost" && host !== "127.0.0.1") {
-      return "https://outsourcing-implementation-randy-maple.trycloudflare.com";
+    if (host === "localhost" || host === "127.0.0.1") {
+      return `http://${host}:8000`;
     }
-    return `http://${host}:8000`;
+    return "";
   }
-  return "https://outsourcing-implementation-randy-maple.trycloudflare.com";
+  return "";
 }
 
 export class ApiError extends Error {
@@ -35,35 +35,31 @@ export async function resilientFetch(
     return optionsInit || {};
   };
 
-  // On production cloud domains, call the direct high-performance backend first!
-  const isCloud = typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
-  
-  if (isCloud) {
+  // If directBackend is configured and non-empty, try direct call first
+  if (directBackend) {
     const directUrl = `${directBackend}${cleanEndpoint}`;
     try {
-      const res = await fetch(directUrl, getOptions());
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const opts = getOptions();
+      const res = await fetch(directUrl, { ...opts, signal: opts.signal || controller.signal });
+      clearTimeout(timeoutId);
       if (res.ok) return res;
-      console.warn(`Direct backend returned ${res.status}, trying proxy fallback...`);
     } catch (directErr) {
-      console.warn(`Direct fetch to ${directUrl} failed, trying proxy fallback:`, directErr);
+      console.warn(`Direct fetch to ${directUrl} failed, trying relative proxy:`, directErr);
     }
   }
 
-  // Attempt local/same-origin proxy
+  // Attempt local/same-origin proxy fetch
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
+  const opts = getOptions();
   try {
-    const res = await fetch(cleanEndpoint, getOptions());
-    if (res.ok) return res;
-    if (!isCloud) {
-      // On localhost, try direct port 8000 fallback
-      const directUrl = `${directBackend}${cleanEndpoint}`;
-      return await fetch(directUrl, getOptions());
-    }
+    const res = await fetch(cleanEndpoint, { ...opts, signal: opts.signal || controller.signal });
+    clearTimeout(timeoutId);
     return res;
   } catch (proxyErr) {
-    if (!isCloud) {
-      const directUrl = `${directBackend}${cleanEndpoint}`;
-      return await fetch(directUrl, getOptions());
-    }
+    clearTimeout(timeoutId);
     throw proxyErr;
   }
 }
