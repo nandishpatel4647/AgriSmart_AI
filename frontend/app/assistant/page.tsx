@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { Bot, Check, HelpCircle, LoaderCircle, Send, Sparkles, Volume2 } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Bot, Check, HelpCircle, LoaderCircle, Mic, MicOff, Send, Sparkles, Volume2, VolumeX } from "lucide-react";
 import { apiPost } from "../lib/api";
 import type { AssistantResponse, InsightInput, InsightResponse, Language } from "../lib/types";
 
@@ -15,8 +15,34 @@ export default function AssistantPage() {
   const [assistantData, setAssistantData] = useState<AssistantResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Voice Input (Speech-to-Text) & Output (Text-to-Speech) State
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  // Stop speech when component unmounts
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  // Stop speech when language changes
+  useEffect(() => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    }
+  }, [language]);
+
   async function explain() {
     setLoading(true);
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    }
+
     try {
       const payload: InsightInput = {
         crop: "Tomato",
@@ -47,6 +73,92 @@ export default function AssistantPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  // Speech-to-Text Microphone Handler
+  function toggleListening() {
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert("Speech recognition is not supported in this browser. Please try Google Chrome or Microsoft Edge.");
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+
+      if (language === "hi") recognition.lang = "hi-IN";
+      else if (language === "gu") recognition.lang = "gu-IN";
+      else recognition.lang = "en-US";
+
+      recognition.onstart = () => setIsListening(true);
+
+      recognition.onresult = (event: any) => {
+        let transcript = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        setUserQuery(transcript);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn("Speech recognition error:", event.error);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => setIsListening(false);
+
+      recognition.start();
+    } catch (err) {
+      console.error("Failed to start speech recognition:", err);
+      setIsListening(false);
+    }
+  }
+
+  // Text-to-Speech Reader Handler
+  function toggleSpeak(text: string) {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      alert("Text-to-speech is not supported in this browser.");
+      return;
+    }
+
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const cleanText = text.replace(/[*#_•]/g, "").replace(/\n+/g, ". ");
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+
+    if (language === "hi") utterance.lang = "hi-IN";
+    else if (language === "gu") utterance.lang = "gu-IN";
+    else utterance.lang = "en-US";
+
+    const voices = window.speechSynthesis.getVoices();
+    if (voices && voices.length > 0) {
+      const targetLang = language === "hi" ? "hi" : language === "gu" ? "gu" : "en";
+      const matched = voices.find((v) => v.lang.startsWith(targetLang));
+      if (matched) utterance.voice = matched;
+    }
+
+    utterance.rate = 0.95;
+    utterance.pitch = 1.0;
+
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+
+    window.speechSynthesis.speak(utterance);
   }
 
   // Pre-fill prompt suggestions
@@ -187,26 +299,59 @@ export default function AssistantPage() {
               </div>
             </div>
 
-            {/* Optional question field */}
+            {/* Question Input Field with Multilingual Voice Input Mic Button */}
             <div className="mt-5 pt-5 border-t border-[#19352b]/10">
               <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="Ask a specific question (e.g. spray schedule, fertilizer)..."
-                  value={userQuery}
-                  onChange={(e) => setUserQuery(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") explain(); }}
-                  className="field-control flex-1 text-xs"
-                />
+                <div className="relative flex-1 flex items-center">
+                  <input
+                    type="text"
+                    placeholder={
+                      language === "hi"
+                        ? "अपना प्रश्न पूछें (जैसे छिड़काव समय, खाद)..."
+                        : language === "gu"
+                        ? "તમારો પ્રશ્ન પૂછો (દા.ત. છંટકાવ સમય)..."
+                        : "Ask a specific question (e.g. spray schedule, fertilizer)..."
+                    }
+                    value={userQuery}
+                    onChange={(e) => setUserQuery(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") explain(); }}
+                    className="field-control w-full text-xs pr-10"
+                    data-testid="assistant-question-input"
+                  />
+                  
+                  {/* Microphone Voice Input Button */}
+                  <button
+                    type="button"
+                    onClick={toggleListening}
+                    title={isListening ? "Listening... Click to stop" : "Speak your question"}
+                    className={`absolute right-2 p-1.5 rounded-lg transition-all cursor-pointer ${
+                      isListening
+                        ? "bg-red-500 text-white animate-pulse"
+                        : "text-[#19352b]/50 hover:text-[#19352b] hover:bg-[#19352b]/10"
+                    }`}
+                    data-testid="assistant-mic-button"
+                  >
+                    {isListening ? <MicOff size={15} /> : <Mic size={15} />}
+                  </button>
+                </div>
+
                 <button
                   type="button"
                   onClick={explain}
                   disabled={loading}
                   className="size-10 flex items-center justify-center rounded-xl bg-[#b77731] text-white hover:bg-[#a36829] transition-colors cursor-pointer shrink-0"
+                  data-testid="assistant-send-button"
                 >
                   <Send size={15} />
                 </button>
               </div>
+
+              {isListening && (
+                <div className="mt-2 text-[11px] font-bold text-red-600 flex items-center gap-1.5 animate-pulse">
+                  <span className="inline-block size-2 rounded-full bg-red-600"></span>
+                  Listening in {language === "hi" ? "Hindi (हिंदी)" : language === "gu" ? "Gujarati (ગુજરાતી)" : "English"}... Speak now!
+                </div>
+              )}
 
               {/* Quick suggestions */}
               <div className="mt-3 flex flex-wrap gap-1.5">
@@ -225,12 +370,38 @@ export default function AssistantPage() {
           </div>
         </div>
 
-        {/* Assistant Response Card */}
+        {/* Assistant Response Card with Voice Output Speaker Readout */}
         {assistantData && (
           <section className="mt-8 rounded-[32px] bg-[#19352b] p-7 text-[#fff8eb] sm:p-10 shadow-[0_24px_60px_rgba(25,53,43,.16)] animate-in fade-in slide-in-from-bottom-4 duration-300" data-testid="assistant-response-card">
-            <span className="text-[10px] font-bold uppercase tracking-[.16em] text-[#f6c86e] block mb-4">
-              Context-Grounded Field Guidance
-            </span>
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-5">
+              <span className="text-[10px] font-bold uppercase tracking-[.16em] text-[#f6c86e]">
+                Context-Grounded Field Guidance
+              </span>
+
+              {/* Speech Synthesis Voice Output Button */}
+              <button
+                type="button"
+                onClick={() => toggleSpeak(assistantData.answer)}
+                className={`inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                  isSpeaking
+                    ? "bg-[#f6c86e] text-[#19352b] animate-pulse shadow-md"
+                    : "bg-white/10 text-white/90 hover:bg-white/20"
+                }`}
+                data-testid="assistant-speak-button"
+              >
+                {isSpeaking ? (
+                  <>
+                    <VolumeX size={15} />
+                    <span>Stop Voice</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 size={15} />
+                    <span>Listen ({language === "hi" ? "हिन्दी" : language === "gu" ? "ગુજરાતી" : "Listen"})</span>
+                  </>
+                )}
+              </button>
+            </div>
 
             <p className="max-w-[860px] font-heading text-[clamp(1.6rem,3.2vw,2.8rem)] leading-[1.08] tracking-[-.05em]" data-testid="assistant-response-answer">
               {assistantData.answer}
