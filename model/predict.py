@@ -27,7 +27,7 @@ import torch.nn as nn
 PROJECT_ROOT = Path(__file__).parent.parent
 MODEL_BEST_WEIGHTS = PROJECT_ROOT / "model" / "weights" / "best_model.pth"
 ROOT_CONVNEXT_WEIGHTS = PROJECT_ROOT / "weights" / "agrismart_convnext.pt"
-WEIGHTS_PATH = MODEL_BEST_WEIGHTS if MODEL_BEST_WEIGHTS.exists() else ROOT_CONVNEXT_WEIGHTS
+WEIGHTS_PATH = ROOT_CONVNEXT_WEIGHTS if ROOT_CONVNEXT_WEIGHTS.exists() else MODEL_BEST_WEIGHTS
 CLASS_MAPPING_PATH = PROJECT_ROOT / "weights" / "class_mapping.json"
 
 # Centroids & OOD configuration
