@@ -17,8 +17,8 @@
 
 
 ## Live Deployment:
-https://agrismart-ai-sih.vercel.app/
-Note: Some features and functionalities may not work as expected in the live deployment. For the most accurate and complete evaluation of the application, it is recommended to run the project locally.
+https://agrismart-ai-sih.vercel.app/ <br>
+**Note:** Some features and functionalities may not work as expected in the live deployment. For the most accurate and complete evaluation of the application, it is recommended to run the project locally.
 
 ## Demo Video: 
 https://drive.google.com/file/d/1YO7PsgQMPfOD9UIEY_GI5VEaqP0-k54D/view?usp=sharing
