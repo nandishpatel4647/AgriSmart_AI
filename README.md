@@ -1,6 +1,6 @@
 # 🌾 AgriSmart AI — Intelligent Agriculture & Disease Diagnosis Engine
 
-> **SIH 2026** — Enterprise-grade AI platform featuring **ConvNeXt-Tiny disease classification (99.75% Macro-F1)**, **Open-Set OOD Rejection**, **Grad-CAM visual explainability**, **FAO-56 smart irrigation**, **ESG Sustainability Engine**, **Soil-Aware Crop Recommendation**, and **Vernacular Voice advisories**.
+> **SIH 2026** — Enterprise-grade AI platform featuring **ConvNeXt-Tiny disease classification (99.56% Macro-F1)**, **Open-Set OOD Rejection**, **Grad-CAM visual explainability**, **FAO-56 smart irrigation**, **ESG Sustainability Engine**, **Soil-Aware Crop Recommendation**, and **Vernacular Voice advisories**.
 
 ---
 
@@ -17,7 +17,7 @@
 
 
 ## Live Deployment:
-https://agrismart-ai-sih.vercel.app/ <br>
+https://agrismart-ai-sih.vercel.app/ <br><br>
 **Note:** Some features and functionalities may not work as expected in the live deployment. For the most accurate and complete evaluation of the application, it is recommended to run the project locally.
 
 ## Demo Video: 
@@ -70,7 +70,7 @@ pytest tests/ -v
     │                           │                                     │                           │
     ▼                           ▼                                     ▼                           ▼
 🔬 Disease Engine           🛡️ Open-Set Safety                    💧 Precision Agronomy       🌱 ESG Sustainability
-- ConvNeXt-Tiny (99.75%)     - Image Quality Gate (Blur/Dark)      - FAO-56 Penman-Monteith    - Published Formula Engine
+- ConvNeXt-Tiny (99.56%)     - Image Quality Gate (Blur/Dark)      - FAO-56 Penman-Monteith    - Published Formula Engine
 - 33 Diagnostic Classes     - Dual Cosine Centroid Distance       - 24hr GPS Rain Forecast    - 40% Water + 30% Soil
 - Grad-CAM Heatmaps         - Free-Energy Outlier Rejection       - Dosage (mm & L/m²)        - Interactive Farm Simulator
 ```
@@ -192,10 +192,24 @@ BACKEND_PORT=8000
 FRONTEND_PORT=3005
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
+---
+
+## 👥 Team — HackElite
+
+### SIH 2026 | AgriSmart AI
+
+| Team Member | Role & Responsibility |
+| :--- | :--- |
+| **Nandish Patel** | **Team Leader & Lead AI/ML Architect** — Overall system architecture, AI/ML pipeline, model integration, full-stack coordination, technical direction, feature integration & final system delivery |
+| **Dhairya Jain** | **AI/ML & Backend Engineer** — Model training, dataset preparation, model evaluation, backend development, API integration & core system functionality |
+| **Parth Darji** | **Frontend & UI/UX Engineer** — UI/UX design, Next.js frontend, responsive interfaces, dashboards & frontend integration |
+| **Meet Dave** | **Full-Stack & Feature Engineer** — Feature implementation, frontend/backend integration, application workflows & functionality |
+| **Dhara Riteshkumar** | **Computer Vision & Data Engineer** — Computer-vision workflows, dataset processing, model evaluation & agricultural data handling |
+| **Ansh Shah** | **Agritech & Product Engineer** — Agriculture-focused modules, crop recommendations, sustainability features & product workflows |
 
 ---
 
-## 👥 Team & License
+## 📜 License
 
 Developed for **SIH 2026 Internal Hackathon**.  
 Distributed under the **[MIT License](LICENSE)**.
